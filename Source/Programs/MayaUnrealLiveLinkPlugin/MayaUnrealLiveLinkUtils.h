@@ -1,0 +1,56 @@
+// MIT License
+
+// Copyright (c) 2022 Autodesk, Inc.
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "LiveLinkProvider.h"
+
+#include "MayaCommonIncludes.h"
+
+namespace MayaUnrealLiveLinkUtils
+{
+    void SetMatrixRow(double* Row, MVector Vec);
+    double RadToDeg(double Rad);
+    double DegToRad(double Deg);
+
+    MMatrix GetScale(const MFnTransform& Joint);
+    MMatrix GetRotationOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+    MMatrix GetRotation(const MFnTransform& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+    MMatrix GetJointOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+    MMatrix GetTranslation(const MFnTransform& Joint);
+	MStatus GetSelectedSubjectDagPath(MDagPath& DagPath);
+
+    void RotateCoordinateSystemForUnreal(MMatrix& InOutMatrix);
+    FTransform BuildUETransformFromMayaTransform(MMatrix& InMatrix);
+    FColor MayaColorToUnreal(MColor Color);
+    FFrameRate GetMayaFrameRateAsUnrealFrameRate();
+    FQualifiedFrameTime GetMayaFrameTimeAsUnrealTime();
+    void OutputRotation(const MMatrix& M);
+    FString StripMayaNamespace(const MString& InName);
+
+	MString GetMStringFromFString(const FString& FString);
+	FString GetFStringFromMString(const MString& String);
+
+    const wchar_t* ConvertTCHARtoWCHAR(const TCHAR* string);
+	void RefreshUI();
+}
