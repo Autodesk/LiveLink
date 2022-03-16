@@ -38,7 +38,14 @@ For additional information on building Unreal Engine, follow the instructions in
 
 <br>
 
-### **3. Download the plugin source code**
+### **3. Install third party libraries**
+The plugin uses the `rapidjson` library to run unit tests.
+It uses the `v1.1.0` tag for [here](https://github.com/Tencent/rapidjson/tree/v1.1.0)
+* Download the zipped content of the `rapidjson` repository from the link above.
+* Create folder called `ThirdParty` under "*Engine/Restricted/NotForLicensees*"
+* Copy the content of the "*include/rapidjson*" folder including the subfolders from the rapidjson zip file inside the `ThirdParty` folder to have folder structure like "*Engine/Restricted/NotForLicensees/ThirdParty/rapidjson*".
+
+### **4. Download the plugin source code**
 Create a folder structure under the "Engine" folder that looks like this: Restricted/NotForLicensees.
 Navigate to the "NotForLicensees" folder in a command shell and the repository:
 ```
@@ -46,7 +53,7 @@ git clone https://github.com/Autodesk/LiveLink.git
 ```
 
 ### Repository Layout
-Under the "Engine/Restricted/NotForLicensees" folder, you will see the folder layout.
+Under the "*Engine/Restricted/NotForLicensees*" folder, you will see the folder layout.
 
 | Location                                          | Description                                      |
 |---------------------------------------------------|--------------------------------------------------|
@@ -58,10 +65,11 @@ Under the "Engine/Restricted/NotForLicensees" folder, you will see the folder la
 | Source/Programs/MayaUnrealLiveLinkPlugin/Subjects | The Subjects classes                             |
 | Source/Programs/UnrealInitializer                 | The Unreal initializer and stream manager module |
 | test                                              | The Python unit tests                            |
+| ThirdParty/rapidjson                              | The rapidjson include files                      |
 
 <br>
 
-### **4. How to build the plugin**
+### **5. How to build the plugin**
 
 You can build the plugin using different methods:
 1. Go to the "*Source/Programs/MayaUnrealLiveLinkPlugin*" folder.<br>
