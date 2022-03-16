@@ -4,18 +4,13 @@
 
 ### **1. Tools and System Prerequisites**
 
-Before building the project, consult the following table to ensure you use the recommended version of compiler, operating system, cmake, etc. 
+Before building the project, consult the following table to ensure you use the recommended version of compiler, operating system, etc. 
 
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
 |    Operating System   |         Windows 10        |       CentOS 7              |
-|   Compiler Requirement| Maya 2019 (VS 2017)<br>Maya 2020 (VS 2017)<br>Maya 2022 (VS 2017/2019) | Maya 2020 (gcc 6.3.1)<br>Maya 2022 (gcc 6.3.1/9.3.1) |
-| CMake Version (min/max) |        3.13 - 3.17      |           3.13 - 3.17       |
-|         Python        |       2.7.15 or 3.7.7     |        2.7.15 or 3.7.7      |
-|    Python Packages    | PyYAML, PySide, PyOpenGL, Jinja2        |PyYAML, PySide, PyOpenGL, Jinja2 |
-|    Build generator    | Visual Studio, Ninja (Recommended)    |    Ninja (Recommended)      |
-|    Command processor  | Visual Studio x64 2017 or 2019 command prompt  |             bash            |
-| Supported Maya Version|     2019, 2020, 2022      |      2020, 2022       |
+|   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1        |
+| Supported Maya Version|     2019, 2020, 2022      |      2020, 2022             |
 
 |        Optional       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:------------------------------------------------------------:|:---------------------------:|
@@ -27,16 +22,19 @@ Before building the project, consult the following table to ensure you use the r
 You can install the Unreal Engine (Windows only) or you can build it yourself from the source code.
 
 #### **1. Install Unreal Engine (Windows only)**
-You can download it from https://www.unrealengine.com and install it.
+You can download it from https://www.unrealengine.com and install it.<br>
+It's only available for Windows, so Linux users will have to download and build the Unreal Engine source code themselves.
 
 #### **2. Download and build the Unreal Engine source code**
 The source code is located at https://github.com/EpicGames/UnrealEngine.<br>
 You need special access rights to clone the repository.<br>
+For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
 
 * To build Unreal Engine 4.27.2 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/4.27.2-release).
+    * Linux users need to merge this pull request to avoid memory crashes:<br>
+    https://github.com/EpicGames/UnrealEngine/pull/8710
+    * Linux users also have to edit *SDL2.Build.cs* in "*Engine\Source\ThirdParty\SDL2*" to comment or remove `"Target.LinkType == TargetLinkType.Monolithic"` block so only the `if` and `else` remains.
 * To build Unreal Engine 5.0.0 preview 1 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.0.0-preview-1).
-
-For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
 
 <br>
 
@@ -47,7 +45,7 @@ Navigate to the "NotForLicensees" folder in a command shell and the repository:
 git clone https://github.com/Autodesk/LiveLink.git
 ```
 
-#### Repository Layout
+### Repository Layout
 Under the "Engine/Restricted/NotForLicensees" folder, you will see the folder layout.
 
 | Location                                          | Description                                      |
@@ -92,97 +90,132 @@ cd /d c:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\MayaUnrealLiveLin
 #### Build location
 
 The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Binaries*" folder.
+* Windows: Plugins for different Maya versions will be located under "*Win64\Maya*"
+* Linux: Plugins for different Maya versions will be located under "*Linux\Maya*"
 
 <br>
 
 ### **6. How To Run Unit Tests**
+Unit tests can be found in the "*test*" folder.
 
-Unit tests can be run by setting ```--stages=test``` or by simply calling `ctest` directly from the build directory.
+As an example, here is how to run the tests using the Maya 2022 Unreal Engine 4.27.2 plugin:
+```
+set MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS=1
 
-For example, to run all Animal Logic's tests from the command-line go into ```build/<variant>/plugin/al``` and call `ctest`.
+rem Testing the Unreal Engine 4.27.2 plugin
+set UNITTEST_UNREAL_VERSION=4_27
 
-```
-➜  ctest -j 8
-Test project /Users/sabrih/Desktop/workspace/build/Debug/plugin/al
-    Start 4: AL_USDMayaTestPlugin
-    Start 5: TestUSDMayaPython
-    Start 8: TestPxrUsdTranslators
-    Start 7: TestAdditionalTranslators
-    Start 1: AL_MayaUtilsTests
-    Start 3: Python:AL_USDTransactionTests
-    Start 2: GTest:AL_USDTransactionTests
-    Start 6: testMayaSchemas
-1/8 Test #2: GTest:AL_USDTransactionTests .....   Passed    0.06 sec
-2/8 Test #6: testMayaSchemas ..................   Passed    0.10 sec
-3/8 Test #3: Python:AL_USDTransactionTests ....   Passed    0.73 sec
-4/8 Test #1: AL_MayaUtilsTests ................   Passed    6.01 sec
-5/8 Test #8: TestPxrUsdTranslators ............   Passed    9.96 sec
-6/8 Test #5: TestUSDMayaPython ................   Passed   10.28 sec
-7/8 Test #7: TestAdditionalTranslators ........   Passed   12.06 sec
-8/8 Test #4: AL_USDMayaTestPlugin .............   Passed   27.43 sec
-100% tests passed, 0 tests failed out of 8
-```
+rem To test the Unreal Engine 5 plugin, use this line instead
+rem set UNITTEST_UNREAL_VERSION=5_0
 
-# Additional Build Instruction
+set MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS=1
 
-##### Python:
+C:\UnrealEngine\Engine\Restricted\NotForLicensees>cd test
 
-It is important to use the Python version shipped with Maya and not the system version when building USD on MacOS. Note that this is primarily an issue on MacOS, where Maya's version of Python is likely to conflict with the version provided by the system. 
+C:\UnrealEngine\Engine\Restricted\NotForLicensees>"C:\Program Files\Autodesk\Maya2022\bin\bin\mayapy.exe" runTests.py
 
-To build USD and the Maya plug-ins on MacOS for Maya (2019, 2020, 2022), run:
-```
-/Applications/Autodesk/maya2019/Maya.app/Contents/bin/mayapy build_usd.py ~/Desktop/BUILD
-```
-By default, ``usdview`` is built which has a dependency on PyOpenGL. Since the Python version of Maya doesn't ship with PyOpenGL you will be prompted with the following error message:
-```
-PyOpenGL is not installed. If you have pip installed, run "pip install PyOpenGL" to install it, then re-run this script.
-If PyOpenGL is already installed, you may need to update your ```PYTHONPATH``` to indicate where it is located.
-```
-The easiest way to bypass this error is by setting ```PYTHONPATH``` to point at your system python or third-party python package manager that has PyOpenGL already installed.
-e.g
-```
-export PYTHONPATH=$PYTHONPATH:Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages
-```
-Use `pip list` to see the list of installed packages with your python's package manager.
+ MayaUnrealLiveLinkPlugin initialized
+LiveLink:
+        Registering Command 'MayaLiveLinkNotifyAndQuit'
+        Registering Command 'MayaUnrealLiveLinkInitialized'
+        Registering Command 'MayaUnrealLiveLinkRefreshConnectionUI'
+        Registering Command 'MayaUnrealLiveLinkRefreshUI'
+        Registering Command 'MayaUnrealLiveLinkUI'
+test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Started
+LiveLinkAddSubjectCommand joint1
+test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Completed
+.test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Started
+LiveLinkAddSubjectCommand joint1
+test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Completed
+.test_camera.test_cameraAspectRatio : INFO : Started
+LiveLinkAddSubjectCommand camera1
+test_camera.test_cameraAspectRatio : INFO : Completed
+.test_camera.test_cameraDoF : INFO : Started
+LiveLinkAddSubjectCommand camera1
+test_camera.test_cameraDoF : INFO : Completed
+.test_camera.test_cameraFoV : INFO : Started
+LiveLinkAddSubjectCommand camera1
+test_camera.test_cameraFoV : INFO : Completed
+.test_camera.test_cameraFocalLength : INFO : Started
+LiveLinkAddSubjectCommand camera1
+test_camera.test_cameraFocalLength : INFO : Completed
+.test_camera.test_cameraTranslationRotation : INFO : Started
+LiveLinkAddSubjectCommand camera1
+test_camera.test_cameraTranslationRotation : INFO : Completed
+.test_customAttributes.test_jointsWithCustomAttr : INFO : Started
+LiveLinkAddSubjectCommand joint1
+test_customAttributes.test_jointsWithCustomAttr : INFO : Completed
+.test_customAttributes.test_propWithCustomAttr : INFO : Started
+LiveLinkAddSubjectCommand joint1
+test_customAttributes.test_propWithCustomAttr : INFO : Completed
+.test_lights.test_directionalLight : INFO : Started
+LiveLinkAddSubjectCommand directionalLight1
+test_lights.test_directionalLight : INFO : Completed
+.test_lights.test_pointLight : INFO : Started
+LiveLinkAddSubjectCommand pointLight1
+test_lights.test_pointLight : INFO : Completed
+.test_lights.test_spotLight : INFO : Started
+LiveLinkAddSubjectCommand spotLight1
+test_lights.test_spotLight : INFO : Completed
+.test_mayaAppTest.test_emptyBaseAnimation : INFO : Started
+test_mayaAppTest.test_emptyBaseAnimation : INFO : Completed
+.test_mayaAppTest.test_polyAnimation : INFO : Started
+test_mayaAppTest.test_polyAnimation : INFO : Completed
+.test_propTransfroms : INFO : Started
+LiveLinkAddSubjectCommand pCube1
+test_propTransfroms : INFO : Completed
+.test_rename.test_renameCamera : INFO : Started
+LiveLinkAddSubjectCommand camera
 
-e.g
-```
-➜ pip list
-DEPRECATION: Python 2.7 will reach the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 won't be maintained after that date. A future version of pip will drop support for Python 2.7.
-Package    Version
----------- -------
-Jinja2     2.10   
-MarkupSafe 1.1.0  
-pip        19.1.1 
-PyOpenGL   3.1.0  
-PySide2    5.12.1 
-PyYAML     3.13   
-setuptools 39.0.1 
-shiboken2  5.12.1 
-```
+LiveLinkAddSubjectCommand camera2
+LiveLinkAddSubjectCommand camera3
+test_rename.test_renameCamera : INFO : Completed
+.test_rename.test_renameProp : INFO : Started
+LiveLinkAddSubjectCommand prop
 
-##### Dependencies on Linux DSOs when running tests
+LiveLinkAddSubjectCommand prop2
+LiveLinkAddSubjectCommand prop3
+test_rename.test_renameProp : INFO : Completed
+.test_rename.test_renameSpotLight : INFO : Started
+LiveLinkAddSubjectCommand spotlight
 
-Normally either runpath or rpath are used on some DSOs in this library to specify explicit on other libraries (such as USD itself)
+LiveLinkAddSubjectCommand spotlight2
+LiveLinkAddSubjectCommand spotlight3
+test_rename.test_renameSpotLight : INFO : Completed
+.test_rename.test_renameskeletonWithTransfNode : INFO : Started
+LiveLinkAddSubjectCommand Root
 
-If for some reason you don't want to use either of these options, and switch them off with:
+LiveLinkAddSubjectCommand Root2
+LiveLinkAddSubjectCommand Root3
+test_rename.test_renameskeletonWithTransfNode : INFO : Completed
+.test_skeletonHierarchy.test_JointOnly : INFO : Started
+LiveLinkAddSubjectCommand Root
+test_skeletonHierarchy.test_JointOnly : INFO : Completed
+.test_skeletonHierarchy.test_TransfNodeOnly : INFO : Started
+LiveLinkAddSubjectCommand Root
+test_skeletonHierarchy.test_TransfNodeOnly : INFO : Completed
+.test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Started
+LiveLinkAddSubjectCommand Root
+test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Completed
+.
+----------------------------------------------------------------------
+Ran 22 tests in 0.806s
+
+OK
 ```
-CMAKE_SKIP_RPATH=TRUE
-```
-To allow your tests to run, you can inject LD_LIBRARY_PATH into any of the mayaUSD_add_test calls by setting the ADDITIONAL_LD_LIBRARY_PATH cmake variable to $ENV{LD_LIBRARY_PATH} or similar.
-
-There is a related ADDITIONAL_PXR_PLUGINPATH_NAME cmake var which can be used if schemas are installed in a non-standard location
 
 <br>
 
 # How to Load Plug-ins in Maya 
+You need to edit the `Maya.env` for the Maya version you're using to add the plugin path.
+Note that there are 2 paths to set, one for the `.mll`/`.so` files and one for the UI `.py` script.
 
-The provided module file (*.mod) facilitates setting various environment variables for plugins and libraries. After the project is successfully built, ```mayaUsd.mod``` is installed inside the install directory. In order for Maya to discover this mod file, ```MAYA_MODULE_PATH``` environment variable needs to be set to point to the location where the mod file is installed.
-Examples:
+Example for Maya 2022 on Windows:
 ```
-set MAYA_MODULE_PATH=C:\workspace\install\RelWithDebInfo
-export MAYA_MODULE_PATH=/usr/local/workspace/install/RelWithDebInfo
-```
-Once MAYA_MODULE_PATH is set, run maya and go to ```Windows -> Setting/Preferences -> Plug-in Manager``` to load the plugins.
+MAYA_PLUG_IN_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya\2022;C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
 
-![](images/plugin_manager.png) 
+MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya\2022;C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
+```
+Once this is set, run maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
+
+Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` is `Loaded` and set to `Auto load` and either `MayaUnrealLiveLinkPlugin_4_27` or `MayaUnrealLiveLinkPlugin_5_0` is loaded and auto load, but not both of them at the same time.
