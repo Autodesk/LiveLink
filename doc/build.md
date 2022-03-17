@@ -88,11 +88,11 @@ There are two arguments that must be passed to the "*BuildMayaUnrealLiveLinkPlug
 
 ```
 Linux:
-➜ BuildMayaUnrealLiveLinkPlugin 2022 Linux
+➜ BuildMayaUnrealLiveLinkPlugin.sh 2022 Linux
 
 Windows:
 cd /d c:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\MayaUnrealLiveLinkPlugin
-➜ MayaUnrealLiveLinkPlugin 2022 Win64
+➜ MayaUnrealLiveLinkPlugin.bat 2022 Win64
 ```
 
 #### Build location
