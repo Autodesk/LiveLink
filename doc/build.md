@@ -42,8 +42,8 @@ For additional information on building Unreal Engine, follow the instructions in
 The plugin uses the `rapidjson` library to run unit tests.
 It uses the `v1.1.0` tag for [here](https://github.com/Tencent/rapidjson/tree/v1.1.0)
 * Download the zipped content of the `rapidjson` repository from the link above.
-* Create folder called `ThirdParty` under "*Engine/Restricted/NotForLicensees*"
-* Copy the content of the "*include/rapidjson*" folder including the subfolders from the rapidjson zip file inside the `ThirdParty` folder to have folder structure like "*Engine/Restricted/NotForLicensees/ThirdParty/rapidjson*".
+* Create a folder called `ThirdParty` under "*Engine/Restricted/NotForLicensees*"
+* Copy the content of the "*include/rapidjson*" folder including the subfolders from the rapidjson zip file inside the `ThirdParty` folder to this structure: "*Engine/Restricted/NotForLicensees/ThirdParty/rapidjson*".
 
 ### **4. Download the plugin source code**
 Create a folder structure under the "Engine" folder that looks like this: Restricted/NotForLicensees.
@@ -224,6 +224,6 @@ MAYA_PLUG_IN_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win
 
 MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya\2022;C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
 ```
-Once this is set, run maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
+Once this is set, run Maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
 
 Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` is `Loaded` and set to `Auto load` and either `MayaUnrealLiveLinkPlugin_4_27` or `MayaUnrealLiveLinkPlugin_5_0` is loaded and auto load, but not both of them at the same time.

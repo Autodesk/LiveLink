@@ -1,6 +1,6 @@
 # What is Unreal Live Link for Maya?
 
-Unreal Live Link for Maya is a project to create a Maya plugin that speeds your animation workflow as you no longer need to export your content and import it into Unreal Engine to see how it looks. You can now work directly inside Maya, and through Live Link, preview what it will look like inside the Engine in real-time.
+Unreal Live Link for Maya is a Maya plugin that speeds up your animation workflow by removing the need to repeatedly export your content and import it into Unreal Engine. You can now work directly inside Maya, and through Live Link, preview what it will look like inside the Engine in real-time.
 
 ## Getting Help
 Autodesk has their own forum which will remain a great place to go to ask questions.
