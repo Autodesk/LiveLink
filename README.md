@@ -15,5 +15,5 @@ Feedback can be provided [here](https://www.autodesk.com/company/contact-us/prod
 + [Contributing](doc/CONTRIBUTING.md)
 + [Building](doc/build.md)
 + [Coding guidelines](doc/codingGuidelines.md)
-+ [License](doc/LICENSE.md)
++ [License](LICENSE.md)
 + [Plugin documentation](doc/README_DOC.md)

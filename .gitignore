@@ -1,0 +1,53 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+.idea
+
+Binaries/
+Staging/
+
+# Visual Studio
+.vs/
+
+# Exclude third party libraries
+ThirdParty/
+
+# Exclude Python cache
+__pycache__/
+*.pyc
+
+# Exclude conan files
+conan.lock
+conan_imports_manifest.txt
+conanbuildinfo.txt
+conaninfo.txt
+graph_info.json
+activate.*
+deactivate.*
+environment.*
