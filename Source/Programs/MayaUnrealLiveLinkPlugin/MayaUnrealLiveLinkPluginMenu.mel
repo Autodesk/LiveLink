@@ -1,0 +1,118 @@
+// MIT License
+
+// Copyright (c) 2022 Autodesk, Inc.
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+// Live Link File menu entries
+
+// Global variable for tapping into this script. Not used ATM.
+string $gMayaUnrealLiveLinkMenuVariable = "";
+
+global proc CreateCommands()
+{
+	// Create a runtime command so it can be used by ADP
+	if (!`runTimeCommand -exists OpenUnrealLiveLinkUI`) {
+		runTimeCommand
+			-annotation "Open Unreal Live Link UI"
+			-category ""
+			-command "MayaUnrealLiveLinkUI"
+			OpenUnrealLiveLinkUI;
+	}
+
+	if (!`runTimeCommand -exists MayaUnrealLiveLinkConnectionMade`) {
+		runTimeCommand
+			-annotation "Connection made notification"
+			-category ""
+			-command "print \"LiveLink Connected\""
+			MayaUnrealLiveLinkConnectionMade;
+	}
+}
+
+global proc SetCommandCategory()
+{
+	string $versionString = stringArrayToString(`LiveLinkGetPluginVersion`, "") + "_" + 
+								stringArrayToString(`LiveLinkGetUnrealVersion`, "");
+
+	CreateCommands();
+
+	// Update category
+	runTimeCommand -edit -category $versionString OpenUnrealLiveLinkUI;
+	runTimeCommand -edit -category $versionString MayaUnrealLiveLinkConnectionMade;
+}
+
+// Create Menu for live link
+//
+global proc AddMayaUnrealLiveLinkMenuItems()
+{
+	// Global variable to hold the main menu.
+	global string $gMainWindow;
+	string $MayaUnrealLiveLinkMenu;
+	string $v = `about -mjv`;
+
+	string $InsertAfter;
+
+	CreateCommands();
+
+	// if we haven't created the menu item do it now
+	if (`menuItem -q -exists ($gMainWindow+"|mainFileMenu|sendToUnrealMenu")`)	
+	{
+		$InsertAfter = "sendToUnrealMenu";
+	} else {
+		// Either the Game Exporter plugin is unloaded or it is not supported at this moment.
+		// We create a divider under Export Selection and put the option there.
+		if (!`menuItem -q -exists MayaUnrealLiveLinkDivider`)
+		{
+			menuItem 
+				-divider true
+				-longDivider false
+				-insertAfter exportActiveFileItem
+				MayaUnrealLiveLinkDivider;
+		}
+
+		// Insert UnrealLiveLink menu item after this divider.
+		$InsertAfter = "MayaUnrealLiveLinkDivider";
+	}
+
+	if (!`menuItem -q -exists MayaUnrealLiveLinkUIMenuItem`)
+	{
+		menuItem
+			-parent mainFileMenu
+			-ann "Unreal Live Link"
+			-label "Unreal Live Link"
+			-command "OpenUnrealLiveLinkUI"
+			-version $v
+			-insertAfter $InsertAfter
+			-echoCommand true
+			MayaUnrealLiveLinkUIMenuItem;
+	}
+}
+
+// Remove Live Link menu items when unloaded
+//
+global proc RemoveMayaUnrealLiveLinkMenuItems()
+{
+	if (`runTimeCommand -exists MayaUnrealLiveLinkConnectionMade`)
+		runTimeCommand -edit -delete MayaUnrealLiveLinkConnectionMade;
+
+	if (`runTimeCommand -exists OpenUnrealLiveLinkUI`)
+		runTimeCommand -edit -delete OpenUnrealLiveLinkUI;
+
+	if(`menuItem -ex MayaUnrealLiveLinkUIMenuItem`) deleteUI -mi MayaUnrealLiveLinkUIMenuItem;
+}
