@@ -496,3 +496,4 @@ class UnrealLiveLinkWindow(QWidget):
     def _moveUESelectorToolTip(self):
         if self._toolTipWindow and self._toolTipWindow.isVisible():
             self._toolTipWindow.move(self._ueSelector.mapToGlobal(QPoint(self._ueSelector.width() + 5, 0)))
+            self._toolTipWindow.raise_()
