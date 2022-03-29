@@ -22,5 +22,7 @@
 
 @echo off
 
-RMDIR %~dp0Staging /S /Q
+if exist %~dp0Staging\ (
+  RMDIR %~dp0Staging /S /Q
+)
 ..\..\..\..\..\Build\BatchFiles\RunUAT.bat  BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=%1 -set:MayaPlatform=%2 -NoXGE
