@@ -417,10 +417,13 @@ class MayaUnrealLiveLinkModel():
                 # Current plugin must be in the same path as previous one.
                 # We set a plugin path for current plugin
                 currPluginPath = ""
+                pluginWithExtension = ""
                 if cmds.about(q=True, linux=True):
-                    currPluginPath = os.path.join(prevPluginPath, currPluginName + ".so")
+                    pluginWithExtension = currPluginName + ".so"
+                    currPluginPath = os.path.join(prevPluginPath, pluginWithExtension)
                 elif cmds.about(q=True, windows=True):
-                    currPluginPath = os.path.join(prevPluginPath, currPluginName + ".mll")
+                    pluginWithExtension = currPluginName + ".mll"
+                    currPluginPath = os.path.join(prevPluginPath, pluginWithExtension)
 
                 # Disable autoload for the previous plugin
                 if prevPluginLoaded and cmds.pluginInfo(prevPluginName, q=True, autoload=True):
@@ -430,7 +433,19 @@ class MayaUnrealLiveLinkModel():
                 # Enable autoload for the current plugin
                 if not cmds.pluginInfo(currPluginName, q=True, autoload=True) and len(currPluginPath)>0:
                     # Autoload current plugin using full path or it will fail
-                    cmds.pluginInfo(currPluginPath, e=True, autoload=True)
+                    if os.path.exists(currPluginPath):
+                        cmds.pluginInfo(currPluginPath, e=True, autoload=True)
+                    else:
+                        # If the plugin for the other Unreal version is not found in the same path,
+                        # go through the paths defined in MAYA_PLUG_IN_PATH
+                        if 'MAYA_PLUG_IN_PATH' in os.environ:
+                            mayaPluginPath = os.environ['MAYA_PLUG_IN_PATH']
+                            mayaPluginPaths = mayaPluginPath.split(';')
+                            for path in mayaPluginPaths:
+                                currPluginPath = os.path.join(path, pluginWithExtension)
+                                if os.path.exists(currPluginPath):
+                                    cmds.pluginInfo(currPluginPath, e=True, autoload=True)
+                                    break
 
                 # Save the autoload preferences
                 cmds.pluginInfo(savePluginPrefs=True)
@@ -641,8 +656,11 @@ class MayaUnrealLiveLinkRefreshConnectionUI(LiveLinkCommand):
     def doIt(self, argList):
         if MayaLiveLinkModel and MayaLiveLinkModel.Controller:
             # Get current connection status
-            ConnectionText, ConnectedState = cmds.LiveLinkConnectionStatus()
-            MayaLiveLinkModel.Controller.updateConnectionState(ConnectionText, ConnectedState)
+            try:
+                ConnectionText, ConnectedState = cmds.LiveLinkConnectionStatus()
+                MayaLiveLinkModel.Controller.updateConnectionState(ConnectionText, ConnectedState)
+            except:
+                pass
 
 # Command to notify the user that Maya needs to be restarted to use a different Unreal version of the plugin
 class MayaLiveLinkNotifyAndQuit(LiveLinkCommand):
