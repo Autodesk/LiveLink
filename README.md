@@ -6,7 +6,7 @@ Unreal Live Link for Maya is a Maya plugin that speeds up your animation workflo
 Autodesk has their own forum which will remain a great place to go to ask questions.
 
 Forum is [here](https://forums.autodesk.com/t5/unreal-live-link-for-maya-forum/bd-p/6143)  
-Documentation is [here](https://www.autodesk.com/unreal-livelink-docs).  
+End user documentation is [here](https://www.autodesk.com/unreal-livelink-docs).  
 Feedback can be provided [here](https://www.autodesk.com/company/contact-us/product-feedback)  
 
 

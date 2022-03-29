@@ -9,23 +9,17 @@ Before building the project, consult the following table to ensure you use the r
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
 |    Operating System   |         Windows 10        |       CentOS 7              |
-|   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1        |
-| Supported Maya Version|     2019, 2020, 2022      |      2020, 2022             |
+|   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1            |
+| Supported Maya Version|     2019, 2020, 2022, 2023|      2020, 2022, 2023       |
 
 |        Optional       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:------------------------------------------------------------:|:---------------------------:|
-|          Qt           | Maya 2019 = 5.6.1<br>Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2 |
+|          Qt           | Maya 2019 = 5.6.1<br>Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 |
 
 <br>
 
 ### **2. Unreal Engine**
-You can install the Unreal Engine (Windows only) or you can build it yourself from the source code.
-
-#### **1. Install Unreal Engine (Windows only)**
-You can download it from https://www.unrealengine.com and install it.<br>
-It's only available for Windows, so Linux users will have to download and build the Unreal Engine source code themselves.
-
-#### **2. Download and build the Unreal Engine source code**
+You need to build Unreal Engine from the source code before building the plugin.<br>
 The source code is located at https://github.com/EpicGames/UnrealEngine.<br>
 You need special access rights to clone the repository.<br>
 For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
@@ -39,11 +33,37 @@ For additional information on building Unreal Engine, follow the instructions in
 <br>
 
 ### **3. Install third party libraries**
+#### **Maya SDK**
+##### **Download SDK**
+
+You need to download and unzip the Maya SDK for your version of Maya at a location of your choice.
+
+The SDKs can be found [here](https://www.autodesk.com/developer-network/platform-technologies/maya).
+
+##### **Setting up the environment variable**
+
+To build the plugin, you will need to tell to where to find the Maya SDK you just downloaded.
+We are using an environment variable to know its location. The location should be set on the `devkitBase` folder.
+
+- **Windows**: 
+Create an environment variable called *MAYA_WND_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+
+- **Linux**: 
+Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+
+For example, if you extracted the Maya 2022 SDK on Windows to `c:\MayaDevKits\2022`, the environment variable would be:
+```
+MAYA_WND_DIR_2022=c:\MayaDevKits\2022\devkitBase
+```
+
+#### **rapidjson**
 The plugin uses the `rapidjson` library to run unit tests.
 It uses the `v1.1.0` tag for [here](https://github.com/Tencent/rapidjson/tree/v1.1.0)
 * Download the zipped content of the `rapidjson` repository from the link above.
 * Create a folder called `ThirdParty` under "*Engine/Restricted/NotForLicensees*"
 * Copy the content of the "*include/rapidjson*" folder including the subfolders from the rapidjson zip file inside the `ThirdParty` folder to this structure: "*Engine/Restricted/NotForLicensees/ThirdParty/rapidjson*".
+
+<br>
 
 ### **4. Download the plugin source code**
 Create a folder structure under the "Engine" folder that looks like this: Restricted/NotForLicensees.
