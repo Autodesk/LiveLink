@@ -564,7 +564,10 @@ def ShowUI(restore=False):
     if restore == True:
         # Add custom mixin widget to the workspace control
         mixinPtr = omui.MQtUtil.findControl(MayaDockableWindow.objectName())
-        omui.MQtUtil.addWidgetToMayaLayout(int(mixinPtr), int(restoredControl))
+        if (sys.version_info[0] >= 3):
+            omui.MQtUtil.addWidgetToMayaLayout(int(mixinPtr), int(restoredControl))
+        else:
+            omui.MQtUtil.addWidgetToMayaLayout(long(mixinPtr), long(restoredControl))
         if MayaLiveLinkModel and MayaLiveLinkModel.Controller:
             MayaLiveLinkModel.Controller.refreshUI()
     else:
