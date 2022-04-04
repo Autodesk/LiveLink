@@ -544,6 +544,15 @@ class MayaUnrealLiveLinkModel():
         except:
             pass
 
+def restoreModelFromWorkspaceControl():
+    if IsAutomatedTest:
+        return
+
+    if cmds.workspaceControl(MayaUnrealLiveLinkDockableWindow.WorkspaceControlName, q=True, exists=True):
+        deleteControl(MayaUnrealLiveLinkDockableWindow.WorkspaceControlName)
+        cmd = MayaUnrealLiveLinkUI()
+        cmd.doIt([])
+
 def ShowUI(restore=False):
     if IsAutomatedTest:
         return
@@ -552,33 +561,26 @@ def ShowUI(restore=False):
     global MayaLiveLinkModel
 
     # Get the dockable window
-    mixinPtr = omui.MQtUtil.findControl(MayaUnrealLiveLinkDockableWindow.WindowName)
-    # Check if the plugin is loaded
-    UIpluginLoaded = cmds.pluginInfo('MayaUnrealLiveLinkPluginUI', q=True, loaded=True)
-
-    # When the control is restoring, the workspace control has already been created and
-    # all that needs to be done is restoring its UI.
-    restoredControl = None
-    if restore == True:
-        # Grab the created workspace control with the following.
-        restoredControl = omui.MQtUtil.getCurrentParent()
+    mixinPtr = omui.MQtUtil.findControl(MayaUnrealLiveLinkDockableWindow.WindowName)       
   
-    if MayaDockableWindow is None and mixinPtr is None:
+    if MayaDockableWindow is None:
         # Create a custom mixin widget for the first time
         MayaDockableWindow = MayaUnrealLiveLinkDockableWindow()
         MayaDockableWindow.setObjectName(MayaUnrealLiveLinkDockableWindow.WindowName)
-        MayaDockableWindow.setProperty("saveWindowPref", True )
-        if not UIpluginLoaded:
-            MayaDockableWindow.hide()
-        mixinPtr = omui.MQtUtil.findControl(MayaUnrealLiveLinkDockableWindow.WindowName)
+        MayaDockableWindow.setProperty("saveWindowPref", True )        
 
-    if not MayaLiveLinkModel and UIpluginLoaded:
+    if MayaLiveLinkModel is None:
         MayaLiveLinkModel = MayaUnrealLiveLinkModel()
         MayaLiveLinkModel.createController()
 
     if restore == True:
+        # When the control is restoring, the workspace control has already been created and
+        # all that needs to be done is restoring its UI.
+        restoredControl = None
+        # Grab the created workspace control with the following.
+        restoredControl = omui.MQtUtil.getCurrentParent()
         # Add custom mixin widget to the workspace control
-        mixinPtr = omui.MQtUtil.findControl(MayaDockableWindow.objectName())
+        mixinPtr = omui.MQtUtil.findControl(MayaUnrealLiveLinkDockableWindow.WindowName)
         if (sys.version_info[0] >= 3):
             omui.MQtUtil.addWidgetToMayaLayout(int(mixinPtr), int(restoredControl))
         else:
@@ -719,7 +721,9 @@ def initializePlugin(mobject):
 
     if not cmds.about(batch=True):
        mel.eval("eval(\"source MayaUnrealLiveLinkPluginMenu.mel;\")")
-       mel.eval('callbacks -addCallback \"AddMayaUnrealLiveLinkMenuItems\" -hook \"addItemToFileMenu\" -owner \"MayaUnrealLiveLinkPluginUI\"');
+       mel.eval('callbacks -addCallback \"AddMayaUnrealLiveLinkMenuItems\" -hook \"addItemToFileMenu\" -owner \"MayaUnrealLiveLinkPluginUI\"')
+
+    restoreModelFromWorkspaceControl()
 
     global AfterPluginUnloadCallbackId
     AfterPluginUnloadCallbackId = \
