@@ -28,7 +28,7 @@ For additional information on building Unreal Engine, follow the instructions in
     * Linux users need to merge this pull request to avoid memory crashes:<br>
     https://github.com/EpicGames/UnrealEngine/pull/8710
     * Linux users also have to edit *SDL2.Build.cs* in "*Engine\Source\ThirdParty\SDL2*" to comment or remove `"Target.LinkType == TargetLinkType.Monolithic"` block so only the `if` and `else` remains.
-* To build Unreal Engine 5.0.0 preview 1 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.0.0-preview-1).
+* To build Unreal Engine 5.0.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.0.0-release).
 
 <br>
 
