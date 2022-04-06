@@ -12,6 +12,7 @@ Feedback can be provided [here](https://www.autodesk.com/company/contact-us/prod
 
 ## Detailed Documentation
 
++ [Changelog](doc/CHANGELOG.md)
 + [Contributing](doc/CONTRIBUTING.md)
 + [Building](doc/build.md)
 + [Coding guidelines](doc/codingGuidelines.md)
