@@ -90,7 +90,7 @@ MSpace::Space G_TransformSpace = MSpace::kTransform;
 
 bool bUEInitialized = false;
 
-const char PluginVersion[] = "v1.1.0";
+const char PluginVersion[] = "v1.1.1";
 const char PluginAppId[] = "3726213941804942083";
 
 static const char OtherUEVersionLoadedEnvVar[] = "OtherUEVersionLoaded";
@@ -937,9 +937,14 @@ bool CameraManipStarted = false;
 bool CameraManipEnded = false;
 bool AnimCurveEdited = false;
 bool AnimKeyFrameEdited = false;
+std::atomic<bool> SendUpdatedData {false};
 
-void OnTimeChanged(MTime& Time, void* ClientData)
+// Helper method to send data to unreal when SendUpdatedData is set.
+void StreamDataToUnreal()
 {
+	// Stream data only when this flag is set.
+	if (!SendUpdatedData) return;
+
 	if (!CameraManipEnded && !AnimCurveEdited && !AnimKeyFrameEdited)
 	{
 		MayaLiveLinkStreamManager::TheOne().StreamSubjects();
@@ -959,6 +964,14 @@ void OnTimeChanged(MTime& Time, void* ClientData)
 		}
 	}
 	CameraManipStarted = false;
+
+	// Set the streaming flag to false.
+	SendUpdatedData = false;
+}
+
+void OnTimeChanged(MTime& Time, void* ClientData)
+{
+	SendUpdatedData = true;
 }
 
 void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
@@ -1116,6 +1129,8 @@ void OnPostRenderViewport(const MString &str, void* ClientData)
 	{
 		return;
 	}
+
+	StreamDataToUnreal();
 
 	auto& MayaStreamManager = MayaLiveLinkStreamManager::TheOne();
 
