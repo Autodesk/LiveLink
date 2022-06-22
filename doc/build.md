@@ -46,14 +46,14 @@ To build the plugin, you will need to tell to where to find the Maya SDK you jus
 We are using an environment variable to know its location. The location should be set on the `devkitBase` folder.
 
 - **Windows**: 
-Create an environment variable called *MAYA_WND_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+Create an environment variable called *MAYA_WIN_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
 
 - **Linux**: 
 Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
 
 For example, if you extracted the Maya 2022 SDK on Windows to `c:\MayaDevKits\2022`, the environment variable would be:
 ```
-MAYA_WND_DIR_2022=c:\MayaDevKits\2022\devkitBase
+MAYA_WIN_DIR_2022=c:\MayaDevKits\2022\devkitBase
 ```
 
 #### **rapidjson**
