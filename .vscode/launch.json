@@ -1,0 +1,77 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Attach",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId":"${command:pickProcess}"
+        },
+        {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${env:MAYA_LOCATION}/bin/maya",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${env:MAYA_LOCATION}/bin",
+            "environment": [
+                {
+                    "name": "MAYA_MODULE_PATH",
+                    "value":"${workspaceFolder}/Binaries/Win64/Maya"
+                },                    
+                {
+                    "name": "MAYA_PLUG_IN_PATH",
+                    "value":"${workspaceFolder}/Source/Programs/MayaUnrealLiveLinkPlugin"
+                },                    
+                {
+                    "name": "MAYA_SCRIPT_PATH",
+                    "value":"${workspaceFolder}/Source/Programs/MayaUnrealLiveLinkPlugin"
+                },
+                {
+                    "name": "MAYA_DEBUG_NO_SIGNAL_HANDLERS",
+                    "value":"1"
+                },
+                {
+                    "name": "MAYA_DEBUG_NO_SAVE_ON_CRASH",
+                    "value":"1"
+                },
+                {
+                    "name": "MAYA_DISABLE_CIP",
+                    "value":"1"
+                },
+                {
+                    "name": "MAYA_DISABLE_CER",
+                    "value":"1"
+                }
+            ],
+            "console": "externalTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "attach",
+            "name": "(Linux) Attach",
+            "program": "${env:MAYA_LOCATION}/bin/maya.bin"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "(Linux) Launch",
+            "program": "${env:MAYA_LOCATION}/bin/maya.bin",
+            "env": {
+                "MAYA_MODULE_PATH":"${workspaceFolder}/Binaries/Linux/Maya",
+                "MAYA_PLUG_IN_PATH":"${workspaceFolder}/Source/Programs/MayaUnrealLiveLinkPlugin",
+                "MAYA_SCRIPT_PATH":"${workspaceFolder}/Source/Programs/MayaUnrealLiveLinkPlugin",
+                "MAYA_DEBUG_NO_SIGNAL_HANDLERS":"1",
+                "MAYA_DEBUG_NO_SAVE_ON_CRASH":"1",
+                "MAYA_NO_MORE_ASSERT":"1",
+                "MAYA_DISABLE_CIP":"1",
+                "MAYA_DISABLE_CER":"1"
+                   },
+            "cwd": "${env:MAYA_LOCATION}/bin"
+        }
+    ]
+}

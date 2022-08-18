@@ -26,11 +26,11 @@ Usage: mayapy runTests.py
 """
 import unittest
 import sys
+from utils import *
 
 sys.dont_write_bytecode = True
 
-import maya.standalone
-maya.standalone.initialize(name='python')
+setUpTest()
 
 """
 Use unitTestloader to dicover the test cases in current directory
@@ -49,4 +49,4 @@ if __name__ == '__main__':
     result = runner.run(discoverTestSuite())
     sys.exit(not result.wasSuccessful())
 
-maya.standalone.uninitialize()
+tearDownTest()

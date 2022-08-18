@@ -23,20 +23,52 @@
 import json
 import math
 import os
+import platform
 
+import maya.standalone
 import maya.api.OpenMaya as OpenMaya
 import maya.cmds as cmds
+
+def setUpTest():
+    os.environ['MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS'] = '1'
+    testPath =  os.path.abspath(os.path.dirname(__file__))
+    if(platform.system()=='Linux'):
+        binariesPlatform = 'Linux'
+    else:
+        binariesPlatform = 'Win64'
+
+    MayaVersion = os.environ.get('MAYA_VERSION')
+    assert MayaVersion,"MAYA_VERSION not specified"
+
+#    os.environ['MAYA_MODULE_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya')
+    os.environ['MAYA_PLUG_IN_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya',MayaVersion)+os.pathsep+os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
+#    os.environ['MAYA_SCRIPT_PATH'] = os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
+
+    maya.standalone.initialize(name='python')
+
+def tearDownTest():
+    pass
+#    maya.standalone.uninitialize()
 
 def loadPlugin(name):
     if not cmds.pluginInfo(name, q=1, loaded=1):
         cmds.loadPlugin(name)
 
 def getUEVersionSuffix():
-    return os.environ.get('UNITTEST_UNREAL_VERSION')
+    UEVersionSuffix = os.environ.get('UNITTEST_UNREAL_VERSION')
+    assert UEVersionSuffix,"UNITTEST_UNREAL_VERSION not specified"
+    return UEVersionSuffix
     
 def loadPlugins():
     version_suffix = getUEVersionSuffix()
-    loadPlugin("MayaUnrealLiveLinkPlugin_" + version_suffix + ".mll")
+    if(platform.system()=='Linux'):
+        extension = ".so"
+        prefix = "lib"
+    else:
+        extension = ".mll"
+        prefix = ""
+
+    loadPlugin(prefix + "MayaUnrealLiveLinkPlugin_" + version_suffix + extension)
     loadPlugin("MayaUnrealLiveLinkPluginUI.py")
 
 # Read json file associated to anim data and get the scene time in seconds.
@@ -118,7 +150,7 @@ def expandFileName(name):
 # Export the json files for multiple frames for the object selected.
 # Will generate json files (one for the static data, and one json file for each frame indidate in the time range given in argument) 
 # Will stream frame from startFrame to endFrame inclusively
-def exportJson(nameObjectToSelect, startFrame=0, endFrame=-1, streamType=""):
+def exportJson(nameObjectToSelect, startFrame=0, endFrame=-1, streamType="", setTime=True):
     filePathStaticData = expandFileName(getFileNameForStaticData(nameObjectToSelect))
     cmds.select(nameObjectToSelect, r=True)
     cmds.LiveLinkChangeSource(2)
@@ -134,7 +166,9 @@ def exportJson(nameObjectToSelect, startFrame=0, endFrame=-1, streamType=""):
 
     endFrame = max(startFrame, endFrame)
     for frame in range(startFrame, endFrame+1):
-       cmds.currentTime(frame)
+       if setTime:
+           # set setTime as False for testing uncommitted (not keyed) edits
+           cmds.currentTime(frame)
        filePathFrameData = expandFileName(getFileNameForFrameData(nameObjectToSelect, frame))
        cmds.LiveLinkExportFrameData(filePathFrameData, frame)
 
@@ -160,7 +194,7 @@ def selectAndAddSubjectsToLiveLink(subjects, unittest):
 
 def almostEqual(list1, list2):
     if isinstance(list1, list) and isinstance(list2, list) and len(list1) == len(list2):
-        return all(math.isclose(*values, abs_tol=1e-05) for values in zip(list1, list2))
+        return all(math.isclose(*values, abs_tol=1e-04) for values in zip(list1, list2))
     return False
 
 def validateColorAttribute(attributeName, value, staticData, frameData, unittest, mustBePresent = True):
@@ -226,12 +260,12 @@ def validateBoneTransform(boneIndex, expectedUnrealTranslation, expectedUnrealRo
     boneTransform = boneTransforms[boneIndex]
 
     # Validate translation
-    unittest.assertTrue('L' in boneTransform)
-    unittest.assertTrue(almostEqual(boneTransform['L'], expectedUnrealTranslation))
+    unittest.assertTrue('L' in boneTransform, msg="No 'L' found in framedata")
+    unittest.assertTrue(almostEqual(expectedUnrealTranslation, boneTransform['L']), msg="Not the expected Translation in framedata, expected " + str(expectedUnrealTranslation) + " got " + str(boneTransform['L']))
 
     # Validate rotation (quaternion)
-    unittest.assertTrue('R' in boneTransform)
-    unittest.assertTrue(almostEqual(expectedUnrealRotation, boneTransform['R']))
+    unittest.assertTrue('R' in boneTransform, msg="no 'R' in framedata")
+    unittest.assertTrue(almostEqual(expectedUnrealRotation, boneTransform['R']), msg="Not the expected Quaternion in framedata, expected " + str(expectedUnrealRotation) + " got " + str(boneTransform['R']))
 
     # Validate scale is not present
-    unittest.assertFalse('S' in boneTransform)
+    unittest.assertFalse('S' in boneTransform, msg="Found 'S' in framedata but should not")

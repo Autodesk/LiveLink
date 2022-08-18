@@ -20,4 +20,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-../../../../../Build/BatchFiles/RunUAT.sh BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=$1 -set:MayaPlatform=$2 -NoXGE
+scriptDir="$(dirname "$(readlink -f "$0")")"
+
+if [ -z "$2" ]
+  then
+    $scriptDir/../../../../../Build/BatchFiles/RunUAT.sh BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=$1 -set:MayaPlatform=Linux -NoXGE
+    exit 1
+fi
+
+$scriptDir/../../../../../Build/BatchFiles/RunUAT.sh BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=$1 -set:MayaPlatform=Linux -set:BuildTarget=$2 -NoXGE
+
+

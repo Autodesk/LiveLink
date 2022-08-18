@@ -110,6 +110,7 @@ def createCharacter():
 class test_blendShapeStreaming(unittest.TestCase):
     
     def setUp(self):
+        setUpTest()
         cmds.file(new = True, force = True)
         self.__files = []
         loadPlugins()
@@ -121,7 +122,7 @@ class test_blendShapeStreaming(unittest.TestCase):
         for f in self.__files:
             if os.path.exists(f):
                 os.remove(f)
-               
+        tearDownTest()
 
     def test_blendShapeStreamSingleFrame(self):
         log = logging.getLogger( "test_blendShapeStreaming.test_blendShapeStreamSingleFrame" )

@@ -36,6 +36,18 @@
 
 static const int SEND_BUFFER_SIZE  = 1024 * 1024;
 
+#ifdef RAPIDJSON_VERSION_STRING
+#else
+	// Conversion table to JSon from Unreal.
+	#define StartObject WriteObjectStart
+	#define EndObject   WriteObjectEnd
+	#define StartArray  WriteArrayStart
+	#define EndArray    WriteArrayEnd
+	#define Double      WriteValue
+	#define String      WriteValue
+	#define Key         WriteIdentifierPrefix
+#endif
+
 int ResolveHelper(const char* Hostname, int Family, const char* Service, sockaddr_storage* Addr)
 {
 	if (Addr == nullptr)
@@ -128,12 +140,17 @@ void FJSONLiveLinkProducer::CloseConnection()
 
 void FJSONLiveLinkProducer::ResetWriter()
 {
+#ifdef RAPIDJSON_VERSION_STRING
 	StringBuffer.Clear();
+#else
+	StringBuffer.Reset();
+#endif
 	Writer.Reset(StringBuffer);
 }
 
 bool FJSONLiveLinkProducer::SendStringBuffer()
 {
+#ifdef RAPIDJSON_VERSION_STRING
 	if (!FileExport)
 	{
 		const int32 Size = StringBuffer.GetSize();
@@ -147,10 +164,28 @@ bool FJSONLiveLinkProducer::SendStringBuffer()
 	{
 		FString JSONString(StringBuffer.GetString());
 		return FFileHelper::SaveStringToFile(JSONString, *FileExportPath);
-
-
 	}
-
+#else
+	if (!FileExport)
+	{
+		const int32 Size = StringBuffer.Num();
+		if (Size <= SEND_BUFFER_SIZE)
+		{
+			SendSuccess = sendto(Socket, (const char *)StringBuffer.GetData(), Size, 0, (sockaddr*)&AddrDest, sizeof(AddrDest)) > 0;
+			return SendSuccess;
+		}
+	}
+	else
+	{
+		FString JSONString;
+		for (int32 i = 0; i < StringBuffer.Num(); i+=sizeof(TCHAR))
+		{
+			TCHAR* Char = static_cast<TCHAR*>(static_cast<void*>(&StringBuffer[i]));
+			JSONString += *Char;
+		}
+		return FFileHelper::SaveStringToFile(JSONString, *FileExportPath);
+	}
+#endif
 	return false;
 }
 
@@ -217,8 +252,12 @@ void FJSONLiveLinkProducer::RemoveSubject(const FName& SubjectName)
 
 	Writer.StartObject();
 	// Subject
+#ifdef RAPIDJSON_VERSION_STRING
 	Writer.Key(TCHAR_TO_UTF8(*SubjectName.ToString()));
 	Writer.String("Remove");
+#else
+	Writer.WriteValue(SubjectName.ToString(), FString("Remove"));
+#endif	
 	Writer.EndObject();
 
 	SendStringBuffer();
@@ -336,7 +375,7 @@ void FJSONLiveLinkProducer::UpdateSubjectStaticData(const FName& SubjectName,
 		for (int i = 0; i < NumBones; ++i)
 		{
 			Writer.StartObject();
-			WriteKey("Name", true, TCHAR_TO_UTF8(*StaticData.BoneNames[i].ToString()));
+			WriteKey("Name", true, StaticData.BoneNames[i].ToString());
 			WriteKey("Parent", true, StaticData.BoneParents[i]);
 			Writer.EndObject();
 		}
@@ -578,8 +617,12 @@ void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 {
 	if (Supported)
 	{
+#ifdef RAPIDJSON_VERSION_STRING
 		Writer.Key(KeyName);
 		Writer.Bool(Value);
+#else
+		Writer.WriteValue(KeyName,Value);
+#endif
 	}
 }
 
@@ -589,8 +632,12 @@ void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 {
 	if (Supported)
 	{
+#ifdef RAPIDJSON_VERSION_STRING
 		Writer.Key(KeyName);
 		Writer.Int(Value);
+#else
+		Writer.WriteValue(KeyName,Value);
+#endif
 	}
 }
 
@@ -600,19 +647,27 @@ void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 {
 	if (Supported)
 	{
+#ifdef RAPIDJSON_VERSION_STRING
 		Writer.Key(KeyName);
 		Writer.Double(Value);
+#else
+		Writer.WriteValue(KeyName,Value);
+#endif
 	}
 }
 
 void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 									 bool Supported,
-									 const char* Value)
+									 const FString& Value)
 {
-	if (Supported && Value)
+	if (Supported)
 	{
+#ifdef RAPIDJSON_VERSION_STRING
 		Writer.Key(KeyName);
-		Writer.String(Value);
+		Writer.String(TCHAR_TO_UTF8(*Value));
+#else
+		Writer.WriteValue(KeyName,Value);
+#endif
 	}
 }
 
@@ -673,7 +728,11 @@ void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 		Writer.StartArray();
 		for (const auto& Name : Value)
 		{
+#ifdef RAPIDJSON_VERSION_STRING
 			Writer.String(TCHAR_TO_UTF8(*Name.ToString()));
+#else
+			Writer.WriteValue(Name.ToString());
+#endif
 		}
 		Writer.EndArray();
 	}
@@ -695,14 +754,32 @@ void FJSONLiveLinkProducer::WriteKey(const char* KeyName,
 	}
 }
 
+void FJSONLiveLinkProducer::WriteLocation(const FVector& Location,
+										  bool isLocationSupported)
+{
+	WriteKey("L", isLocationSupported, Location);
+}
+
+void FJSONLiveLinkProducer::WriteRotation(const FQuat& Rotation,
+										  bool isRotationSupported)
+{
+	WriteKey("R", isRotationSupported, Rotation);
+}
+
+void FJSONLiveLinkProducer::WriteScale(const FVector& Scale,
+									   bool isScaleSupported)
+{
+	WriteKey("S", isScaleSupported, Scale);
+}
+
 void FJSONLiveLinkProducer::WriteTransform(const FTransform& Transform,
 										   bool isLocationSupported,
 										   bool isRotationSupported,
 										   bool isScaleSupported)
 {
-	WriteKey("L", isLocationSupported, Transform.GetLocation());
-	WriteKey("R", isRotationSupported, Transform.GetRotation());
-	WriteKey("S", isScaleSupported, Transform.GetScale3D());
+	WriteLocation(Transform.GetLocation(), isLocationSupported);
+	WriteRotation(Transform.GetRotation(), isRotationSupported);
+	WriteScale(Transform.GetScale3D(), isScaleSupported);
 }
 
 void FJSONLiveLinkProducer::WriteTransform(const FTransform& Transform,
@@ -730,14 +807,21 @@ void FJSONLiveLinkProducer::StartWriterStaticData(const FName& SubjectName,
 	Writer.StartObject();
 
 	// Subject
+#ifdef RAPIDJSON_VERSION_STRING
 	Writer.Key(TCHAR_TO_UTF8(*SubjectName.ToString()));
-
+#else
+	Writer.WriteIdentifierPrefix(SubjectName.ToString());
+#endif
 	Writer.StartArray();
 
 	// Role
 	Writer.StartObject();
+#ifdef RAPIDJSON_VERSION_STRING
 	Writer.Key("Role");
 	Writer.String(RoleName);
+#else
+	Writer.WriteValue("Role",FString(RoleName));
+#endif
 	Writer.EndObject();
 }
 
@@ -751,28 +835,19 @@ void FJSONLiveLinkProducer::StartWriterFrameData(const FName& SubjectName,
 												 const char* RoleName,
 												 double SceneTimeInSeconds)
 {
-	Writer.StartObject();
-
-	// Subject
-	Writer.Key(TCHAR_TO_UTF8(*SubjectName.ToString()));
-
-	Writer.StartArray();
-
-	// Role
-	Writer.StartObject();
-	Writer.Key("Role");
-	Writer.String(RoleName);
-	Writer.EndObject();
-
+	StartWriterStaticData(SubjectName, RoleName);
 	// Time
 	Writer.StartObject();
+#ifdef RAPIDJSON_VERSION_STRING
 	Writer.Key("Time");
 	Writer.Double(SceneTimeInSeconds);
+#else
+	Writer.WriteValue("Time",SceneTimeInSeconds);
+#endif
 	Writer.EndObject();
 }
 
 void FJSONLiveLinkProducer::EndWriterFrameData()
 {
-	Writer.EndArray();
-	Writer.EndObject();
+	EndWriterStaticData();
 }

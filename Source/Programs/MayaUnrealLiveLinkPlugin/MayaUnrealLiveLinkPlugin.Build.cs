@@ -30,9 +30,12 @@ using EpicGames.Core;
 
 public class MayaUnrealLiveLinkPlugin : ModuleRules
 {
-	public MayaUnrealLiveLinkPlugin(ReadOnlyTargetRules Target) : base(Target)
+	string MayaVersion;
+	public MayaUnrealLiveLinkPlugin(ReadOnlyTargetRules Target, string pMayaVersion="") : base(Target)
 	{
-		// Skip initialization ff not building for a specific version
+		MayaVersion = pMayaVersion;
+
+		// Skip initialization if not building for a specific version
 		// This class is used as the base class for the other versions,
         // but must still be instiate by the Unreal build system
 		if (GetMayaVersion() == string.Empty)
@@ -41,7 +44,11 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
         }
 
 		// For LaunchEngineLoop.cpp include.  You shouldn't need to add anything else to this line.
-		PrivateIncludePaths.AddRange(new string[] { "Runtime/Launch/Public", "Runtime/Launch/Private" });
+		PrivateIncludePaths.AddRange(new string[]
+		{
+			"Runtime/Launch/Public",
+			"Runtime/Launch/Private"
+		});
 
 		// Unreal dependency modules
 		PrivateDependencyModuleNames.AddRange(new string[]
@@ -65,94 +72,82 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
 		string MayaIncludePath   = GetMayaIncludePath();
 		string MayaLibDir        = GetMayaLibraryPath();
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		// Make sure this version of Maya is actually installed
+		if (Directory.Exists(MayaInstallFolder))
 		{
-			// Make sure this version of Maya is actually installed
-			if (Directory.Exists(MayaInstallFolder))
+			PrivateIncludePaths.Add(MayaIncludePath);
+//			RapidJSON is now optional, can be added as a submodule in ThirdParty if prouved to be necessary.
+//			PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Restricted","NotForLicensees","ThirdParty","rapidjson","include"));
+
+			string MayaLibPrefix = "";
+			string MayaLibExtension = "";
+
+			if (Target.Platform == UnrealTargetPlatform.Win64)
 			{
-				// These are required for Maya headers to compile properly as a DLL
 				PublicDefinitions.Add("NT_PLUGIN=1");
-				PublicDefinitions.Add("REQUIRE_IOSTREAM=1");
-
-				PrivateIncludePaths.Add(MayaIncludePath);
-				PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Restricted/NotForLicensees/ThirdParty"));
-
-				if (Target.Platform == UnrealTargetPlatform.Win64)  // @todo: Support other platforms?
-				{
-					// Maya libraries we're depending on
-					string[] MayaLibs = new string[]
-					{
-						"Foundation.lib",
-						"OpenMaya.lib",
-						"OpenMayaAnim.lib",
-						"OpenMayaUI.lib"
-					};
-					foreach(string MayaLib in MayaLibs)
-					{
-						 PublicAdditionalLibraries.Add(Path.Combine(MayaLibDir, MayaLib));
-					}
-				}
-            			PublicDependencyModuleNames.Add("UnrealInitializer");
-         }
-			//else
-			//{
-			//	throw new BuildException("Couldn't find Autodesk Maya " + MayaVersionString + " in folder '" + MayaInstallFolder + "'.  This version of Maya must be installed for us to find the Maya SDK files.");
-			//}
-		}
-
-		PublicDefinitions.Add(
- 		#if UE_5_0_OR_LATER
-			"UE_5_0_OR_LATER=1"
-		#else
-			"UE_5_0_OR_LATER=0"
- 		#endif // UE_5_0_OR_LATER
-			);
-
-		if (Target.Platform == UnrealTargetPlatform.Linux) {
-			// Make sure this version of Maya is actually installed
-			if (Directory.Exists(MayaInstallFolder))
-			{
-				// These are required for Maya headers to compile properly as a DLL
+				MayaLibExtension = ".lib";
+			} else if (Target.Platform == UnrealTargetPlatform.Linux) {
+				bool IsLinux = System.Environment.OSVersion.Platform.ToString() == "Unix";
 				PublicDefinitions.Add("LINUX=1");
-				PublicDefinitions.Add("REQUIRE_IOSTREAM=1");
-
-
-				PrivateIncludePaths.Add(MayaIncludePath);
-				PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Restricted/NotForLicensees/ThirdParty"));
-
-
-				if (Target.Platform == UnrealTargetPlatform.Linux)
+				// For GL/gl.h
+				if(IsLinux)
 				{
-
-
-					// Maya libraries we're depending on
-					string[] MayaLibs = new string[]
-					{
-						"libFoundation.so",
-						"libOpenMaya.so",
-						"libOpenMayaAnim.so",
-						"libOpenMayaUI.so"
-					};
-					foreach(string MayaLib in MayaLibs)
-					{
-						 PublicAdditionalLibraries.Add(Path.Combine(MayaLibDir, MayaLib));
-					}
+					PrivateIncludePaths.Add("/usr/include");
+				} 
+				else
+				{
+					// Build machine don't have Open GL headers installed so let's use a copy of it for cross-compile
+					PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Restricted","NotForLicensees","build-scripts"));
 				}
-				PublicDependencyModuleNames.Add("UnrealInitializer");
+
+				MayaLibPrefix = "lib";
+				MayaLibExtension = ".so";
 			}
+
+			// Maya libraries we're depending on
+			string[] MayaLibs = new string[]
+			{
+				"Foundation",
+				"OpenMaya",
+				"OpenMayaAnim",
+				"OpenMayaUI"
+			};
+			foreach(string MayaLib in MayaLibs)
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(MayaLibDir, MayaLibPrefix + MayaLib + MayaLibExtension));
+			}
+
+			PublicDefinitions.Add(
+			#if UE_5_0_OR_LATER
+				"UE_5_0_OR_LATER=1"
+			#else
+				"UE_5_0_OR_LATER=0"
+			#endif // UE_5_0_OR_LATER
+				);
+
 		}
+		//else
+		//{
+		//	throw new BuildException("Couldn't find Autodesk Maya " + MayaVersionString + " in folder '" + MayaInstallFolder + "'.  This version of Maya must be installed for us to find the Maya SDK files.");
+		//}
 	}
 
-	public virtual string GetMayaVersion() { return string.Empty; }
+	public string GetMayaVersion() { return MayaVersion; }
 	public virtual string GetMayaInstallFolderPath()
 	{
 		// Try with standard setup
 		string Location = System.Environment.GetEnvironmentVariable("MAYA_WIN_DIR_" + GetMayaVersion());
 
-
 		if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
 			Location = System.Environment.GetEnvironmentVariable("MAYA_LNX_DIR_" + GetMayaVersion());
+		}
 		
+		if (Location == null)
+		{
+			Location = string.Empty;
+		}
+
 		if (!Directory.Exists(Location))
 		{
 			// Try with build machine setup
@@ -165,6 +160,6 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
 
 		return Location;
 	}
-	public virtual string GetMayaIncludePath() { return Path.Combine(GetMayaInstallFolderPath(), "devkit", "include"); }
-	public virtual string GetMayaLibraryPath() { return Path.Combine(GetMayaInstallFolderPath(), "devkit", "lib"); }
+	public virtual string GetMayaIncludePath() { return Path.Combine(GetMayaInstallFolderPath(), "include"); }
+	public virtual string GetMayaLibraryPath() { return Path.Combine(GetMayaInstallFolderPath(), "lib"); }
 }

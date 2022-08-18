@@ -1,5 +1,16 @@
 # Changelog
 
+## [v1.1.2] - 2022-08-18
+- Removed dependency on RapidJSON
+- Unit tests are now working on Linux 
+- Support for VSCode/CMake
+- UnrealInitializer sources moved to simplify build process
+<br>
+
+## [v1.1.1] - 2022-05-13
+- Fix an issue where the previous frame was sent to Unreal instead of the current frame. 
+<br>
+
 ## [v1.1.0] - 2022-04-08
 This is the first released version.
 <br>

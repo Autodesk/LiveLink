@@ -46,10 +46,23 @@
 #include <stdlib.h>
 #endif
 
-THIRD_PARTY_INCLUDES_START
-#include "../../../ThirdParty/rapidjson/stringbuffer.h"
-#include "../../../ThirdParty/rapidjson/writer.h"
-THIRD_PARTY_INCLUDES_END
+// Try to include RapidJSON headers otherwise include JSon from Unreal.
+#ifndef __has_include
+    #define __has_include(F) 0
+    #define JSON__has_include_DEFINED
+#endif
+#if __has_include(<rapidjson/stringbuffer.h>)
+	#pragma message("Using RapidJSON")
+	THIRD_PARTY_INCLUDES_START
+	#include <rapidjson/stringbuffer.h>
+	#include <rapidjson/writer.h>
+	THIRD_PARTY_INCLUDES_END
+#else
+	#include "Json.h"
+#endif
+#ifdef JSON__has_include_DEFINED
+    #undef JSON__has_include_DEFINED
+#endif
 
 struct FIPv4Endpoint;
 struct FLiveLinkSkeletonStaticData;
@@ -161,13 +174,16 @@ private:
 	void WriteKey(const char* KeyName, bool Supported, bool Value);
 	void WriteKey(const char* KeyName, bool Supported, int Value);
 	void WriteKey(const char* KeyName, bool Supported, double Value);
-	void WriteKey(const char* KeyName, bool Supported, const char* Value);
+	void WriteKey(const char* KeyName, bool Supported, const FString& Value);
 	void WriteKey(const char* KeyName, bool Supported, const FVector& Value);
 	void WriteKey(const char* KeyName, bool Supported, const FQuat& Value);
 	void WriteKey(const char* KeyName, bool Supported, const FColor& Value);
 	void WriteKey(const char* KeyName, bool Supported, const TArray<FName>& Value);
 	void WriteKey(const char* KeyName, bool Supported, const TArray<float>& Value);
 
+	void WriteLocation(const FVector& Location, bool isLocationSupported = true);
+	void WriteRotation(const FQuat& Rotation, bool isRotationSupported = true);
+	void WriteScale(const FVector& Scale, bool isScaleSupported = false);
 	void WriteTransform(const FTransform& transform,
 						bool isLocationSupported = true,
 						bool isRotationSupported = true,
@@ -197,8 +213,45 @@ private:
 	sockaddr_storage AddrDest = {};
 	bool SendSuccess = true;
 
+#ifdef RAPIDJSON_VERSION_STRING
 	rapidjson::StringBuffer StringBuffer;
 	rapidjson::Writer<rapidjson::StringBuffer> Writer;
+#else
+	template <class PrintPolicy = TPrettyJsonPrintPolicy<TCHAR>>
+	class TJsonBytesWriter
+		: public TJsonWriter<TCHAR, PrintPolicy>
+	{
+	public:
+
+		virtual ~TJsonBytesWriter()
+		{
+			check(this->Stream->Close());
+			delete this->Stream;
+		}
+
+		void Reset(TArray<uint8>& InBytes)
+		{
+			this->Stream->Reset();
+			this->Stream->Seek(0);
+			this->Stack.Reset();
+			this->PreviousTokenWritten = EJsonToken::None;
+			this->IndentLevel = 0;
+			Bytes.Reset();
+		}
+
+		TJsonBytesWriter( TArray<uint8>& InBytes, int32 InitialIndent=0 )
+			: TJsonWriter<TCHAR, PrintPolicy>(new FMemoryWriter(InBytes), InitialIndent)
+			, Bytes(InBytes)
+		{ }
+
+	private:
+
+		TArray<uint8>& Bytes;
+	};
+
+	TArray<uint8> StringBuffer;
+	TJsonBytesWriter<TCondensedJsonPrintPolicy<TCHAR>> Writer;
+#endif
 
 	// Cache of our current subject state
  	TArray<FTrackedStaticData> StaticDatas;
