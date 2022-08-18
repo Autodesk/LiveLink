@@ -31,17 +31,18 @@ import maya.cmds as cmds
 
 def setUpTest():
     os.environ['MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS'] = '1'
-    testPath =  os.path.abspath(os.path.dirname(__file__))
-    if(platform.system()=='Linux'):
-        binariesPlatform = 'Linux'
-    else:
-        binariesPlatform = 'Win64'
-
-    MayaVersion = os.environ.get('MAYA_VERSION')
-    assert MayaVersion,"MAYA_VERSION not specified"
 
     # Must check if MAYA_PLUG_IN_PATH is not already set, otherwise, assume executing from within source tree.
     if 'MAYA_PLUG_IN_PATH' not in os.environ:
+        testPath =  os.path.abspath(os.path.dirname(__file__))
+        if(platform.system()=='Linux'):
+            binariesPlatform = 'Linux'
+        else:
+            binariesPlatform = 'Win64'
+
+        MayaVersion = os.environ.get('MAYA_VERSION')
+        assert MayaVersion,"MAYA_VERSION not specified"
+
         # Looks like MAYA_MODULE_PATH is not working when used from mayapy.
         # os.environ['MAYA_MODULE_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya')
         os.environ['MAYA_PLUG_IN_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya',MayaVersion)+os.pathsep+os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')

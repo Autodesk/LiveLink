@@ -62,7 +62,7 @@ MAYA_WIN_DIR_2022=c:\MayaDevKits\2022\devkitBase
 Create a folder structure under the "Engine" folder that looks like this: Restricted/NotForLicensees.
 Navigate to the "NotForLicensees" folder in a command shell and the repository:
 ```
-git clone https://github.com/Autodesk/LiveLink.git
+git clone https://github.com/Autodesk/LiveLink.git .
 ```
 
 ### Repository Layout
@@ -123,6 +123,9 @@ As an example, here is how to run the tests using the Maya 2022 Unreal Engine 4.
 ```
 rem Testing the Unreal Engine 4.27.2 plugin
 set UNITTEST_UNREAL_VERSION=4_27
+
+rem Set the Maya Version to use
+set MAYA_VERSION=2022
 
 rem To test the Unreal Engine 5 plugin, use this line instead
 rem set UNITTEST_UNREAL_VERSION=5_0

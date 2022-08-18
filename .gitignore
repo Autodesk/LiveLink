@@ -51,3 +51,15 @@ graph_info.json
 activate.*
 deactivate.*
 environment.*
+
+Binaries/
+Extras/
+
+**/Intermediate/*
+**/Build/*
+
+*.aps
+
+# CMake specific files
+build/*
+.env
