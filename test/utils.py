@@ -40,11 +40,18 @@ def setUpTest():
     MayaVersion = os.environ.get('MAYA_VERSION')
     assert MayaVersion,"MAYA_VERSION not specified"
 
-#    os.environ['MAYA_MODULE_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya')
-    os.environ['MAYA_PLUG_IN_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya',MayaVersion)+os.pathsep+os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
-#    os.environ['MAYA_SCRIPT_PATH'] = os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
+    # Must check if MAYA_PLUG_IN_PATH is not already set, otherwise, assume executing from within source tree.
+    if 'MAYA_PLUG_IN_PATH' not in os.environ:
+        # Looks like MAYA_MODULE_PATH is not working when used from mayapy.
+        # os.environ['MAYA_MODULE_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya')
+        os.environ['MAYA_PLUG_IN_PATH'] = os.path.join(testPath,'..','Binaries',binariesPlatform,'Maya',MayaVersion)+os.pathsep+os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
+        os.environ['MAYA_SCRIPT_PATH'] = os.path.join(testPath,'..','Source','Programs','MayaUnrealLiveLinkPlugin')
 
-    maya.standalone.initialize(name='python')
+    # If running tests from within Maya, standalone.initialize is not required and will fail.
+    try:
+        maya.standalone.initialize(name='python')
+    except:
+        pass
 
 def tearDownTest():
     pass
