@@ -104,7 +104,6 @@ Linux:
 ➜ BuildMayaUnrealLiveLinkPlugin.sh 2022 Linux
 
 Windows:
-cd /d c:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\MayaUnrealLiveLinkPlugin
 ➜ MayaUnrealLiveLinkPlugin.bat 2022 Win64
 ```
 
