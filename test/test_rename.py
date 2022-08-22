@@ -28,6 +28,7 @@ from utils import *
 
 class test_rename(unittest.TestCase):
     def setUp(self):
+        setUpTest()
         cmds.file(new = True, force = True)
         self.__files = []
         loadPlugins()
@@ -42,6 +43,7 @@ class test_rename(unittest.TestCase):
         for f in self.__files:
             if os.path.exists(f):
                 os.remove(f)
+        tearDownTest()
 
     def ValidateRename(self, defaultName, defaultType, defaultRole, newRole):
         cmds.LiveLinkAddSelection()

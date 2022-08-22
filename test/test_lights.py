@@ -29,6 +29,7 @@ import maya.api.OpenMaya as OpenMaya
 
 class test_lights(unittest.TestCase):
     def setUp(self):
+        setUpTest()
         # Attributes to change
         self.translation = [3, 4, 5]
         self.expectedUnrealTranslation = [3, 5, 4]
@@ -57,6 +58,7 @@ class test_lights(unittest.TestCase):
         for f in self.__files:
             if os.path.exists(f):
                 os.remove(f)
+        tearDownTest()
 
     def ExportJsonData(self, objectName):
         # Export Json

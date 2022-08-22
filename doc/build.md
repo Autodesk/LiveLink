@@ -8,7 +8,7 @@ Before building the project, consult the following table to ensure you use the r
 
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
-|    Operating System   |         Windows 10        |       CentOS 7              |
+|    Operating System   |         Windows 10        |       CentOS 7/8            |
 |   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1            |
 | Supported Maya Version|     2019, 2020, 2022, 2023|      2020, 2022, 2023       |
 
@@ -56,36 +56,28 @@ For example, if you extracted the Maya 2022 SDK on Windows to `c:\MayaDevKits\20
 MAYA_WIN_DIR_2022=c:\MayaDevKits\2022\devkitBase
 ```
 
-#### **rapidjson**
-The plugin uses the `rapidjson` library to run unit tests.
-It uses the `v1.1.0` tag for [here](https://github.com/Tencent/rapidjson/tree/v1.1.0)
-* Download the zipped content of the `rapidjson` repository from the link above.
-* Create a folder called `ThirdParty` under "*Engine/Restricted/NotForLicensees*"
-* Copy the content of the "*include/rapidjson*" folder including the subfolders from the rapidjson zip file inside the `ThirdParty` folder to this structure: "*Engine/Restricted/NotForLicensees/ThirdParty/rapidjson*".
-
 <br>
 
 ### **4. Download the plugin source code**
 Create a folder structure under the "Engine" folder that looks like this: Restricted/NotForLicensees.
 Navigate to the "NotForLicensees" folder in a command shell and the repository:
 ```
-git clone https://github.com/Autodesk/LiveLink.git
+git clone https://github.com/Autodesk/LiveLink.git .
 ```
 
 ### Repository Layout
 Under the "*Engine/Restricted/NotForLicensees*" folder, you will see the folder layout.
 
-| Location                                          | Description                                      |
-|---------------------------------------------------|--------------------------------------------------|
-| resource                                          | The resource folder                              |
-| Source                                            | The Autodesk Maya plugin                         |
-| Source/Programs/MayaUnrealLiveLinkPlugin          | The MayaUnrealLiveLinkPlugin module and plugin   |
-| Source/Programs/MayaUnrealLiveLinkPlugin/icons    | The icons folder                                 |
-| Source/Programs/MayaUnrealLiveLinkPlugin/scripts  | The Python UI classes                            |
-| Source/Programs/MayaUnrealLiveLinkPlugin/Subjects | The Subjects classes                             |
-| Source/Programs/UnrealInitializer                 | The Unreal initializer and stream manager module |
-| test                                              | The Python unit tests                            |
-| ThirdParty/rapidjson                              | The rapidjson include files                      |
+| Location                                                   | Description                                      |
+|------------------------------------------------------------|--------------------------------------------------|
+| resource                                                   | The resource folder                              |
+| Source                                                     | The Autodesk Maya plugin                         |
+| Source/Programs/MayaUnrealLiveLinkPlugin                   | The MayaUnrealLiveLinkPlugin module and plugin   |
+| Source/Programs/MayaUnrealLiveLinkPlugin/icons             | The icons folder                                 |
+| Source/Programs/MayaUnrealLiveLinkPlugin/scripts           | The Python UI classes                            |
+| Source/Programs/MayaUnrealLiveLinkPlugin/Subjects          | The Subjects classes                             |
+| Source/Programs/MayaUnrealLiveLinkPlugin/UnrealInitializer | The Unreal initializer and stream manager module |
+| test                                                       | The Python unit tests                            |
 
 <br>
 
@@ -96,8 +88,9 @@ You can build the plugin using different methods:
     * **Windows**: Use the "*BuildMayaUnrealLiveLinkPlugin.bat*" batch file.<br>
     * **Linux**: Use the "*BuildMayaUnrealLiveLinkPlugin.sh*" shell script.
 2. **Windows only**: Open the Unreal Engine .sln file and build the Engine using the "Development Editor" configuration.
+3. **VSCode/CMake**: Set the environment variables MAYA_LOCATION and MAYA_DEVKIT_LOCATION to the proper location before launching VSCode. Build with RelWithDebInfo to compile plugin. After opening a python file the Test Explorer will detect all the python unittests. UE version, MayaVersion and Platform will be detected automatically.
 
-#### Arguments
+#### Arguments method (1)
 
 There are two arguments that must be passed to the "*BuildMayaUnrealLiveLinkPlugin*" script: 
 
@@ -111,7 +104,6 @@ Linux:
 ➜ BuildMayaUnrealLiveLinkPlugin.sh 2022 Linux
 
 Windows:
-cd /d c:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\MayaUnrealLiveLinkPlugin
 ➜ MayaUnrealLiveLinkPlugin.bat 2022 Win64
 ```
 
@@ -128,15 +120,14 @@ Unit tests can be found in the "*test*" folder.
 
 As an example, here is how to run the tests using the Maya 2022 Unreal Engine 4.27.2 plugin:
 ```
-set MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS=1
-
 rem Testing the Unreal Engine 4.27.2 plugin
 set UNITTEST_UNREAL_VERSION=4_27
 
+rem Set the Maya Version to use
+set MAYA_VERSION=2022
+
 rem To test the Unreal Engine 5 plugin, use this line instead
 rem set UNITTEST_UNREAL_VERSION=5_0
-
-set MAYA_UNREAL_LIVELINK_AUTOMATED_TESTS=1
 
 C:\UnrealEngine\Engine\Restricted\NotForLicensees>cd test
 
@@ -238,11 +229,13 @@ OK
 You need to edit the `Maya.env` for the Maya version you're using to add the plugin path.
 Note that there are 2 paths to set, one for the `.mll`/`.so` files and one for the UI `.py` script.
 
-Example for Maya 2022 on Windows:
+Example for Maya on Windows:
 ```
-MAYA_PLUG_IN_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya\2022;C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
+MAYA_MODULE_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya
 
-MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Binaries\Win64\Maya\2022;C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
+MAYA_PLUG_IN_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
+
+MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Programs\MayaUnrealLiveLinkPlugin
 ```
 Once this is set, run Maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
 

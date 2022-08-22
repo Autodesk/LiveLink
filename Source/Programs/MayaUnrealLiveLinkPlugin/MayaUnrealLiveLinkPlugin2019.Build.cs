@@ -24,9 +24,7 @@ using UnrealBuildTool;
 
 public class MayaUnrealLiveLinkPlugin2019 : MayaUnrealLiveLinkPlugin
 {
-	public MayaUnrealLiveLinkPlugin2019(ReadOnlyTargetRules Target) : base(Target)
+	public MayaUnrealLiveLinkPlugin2019(ReadOnlyTargetRules Target) : base(Target, "2019")
 	{
 	}
-	
-	public override string GetMayaVersion() { return "2019"; }
 }

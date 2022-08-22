@@ -32,6 +32,7 @@ class test_skeletonHierarchy(unittest.TestCase):
     numberOfNodes = 0
 
     def setUp(self):
+        setUpTest()
         cmds.file(new = True, force = True)
         # Set current time to be 30fps
         cmds.currentUnit( time='ntsc' )
@@ -43,6 +44,7 @@ class test_skeletonHierarchy(unittest.TestCase):
         for f in self.__files:
             if os.path.exists(f):
                 os.remove(f)
+        tearDownTest()
 
     def ExportJsonData(self):
         # Export Json

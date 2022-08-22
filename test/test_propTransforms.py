@@ -28,6 +28,7 @@ from utils import *
 
 class test_propTransforms(unittest.TestCase):
     def setUp(self):
+        setUpTest()
         cmds.file(new = True, force = True)
         # Set current time to be 30fps
         cmds.currentUnit( time='ntsc' )

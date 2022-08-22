@@ -23,8 +23,15 @@
 import maya.cmds as cmds
 import unittest
 import logging
+from utils import *
 
 class test_mayaAppTest(unittest.TestCase):
+    def setUp(self):
+        setUpTest()
+
+    def tearDown(self):
+        tearDownTest()
+
     def test_polyAnimation(self):
         """
         Test basic animation

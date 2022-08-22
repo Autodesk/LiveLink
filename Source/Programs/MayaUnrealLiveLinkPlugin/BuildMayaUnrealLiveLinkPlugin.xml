@@ -4,6 +4,7 @@
 	<Option Name="PublishZipDir_Win" DefaultValue="$(RootDir)/LocalBuilds/Engine/WindowsZips" Description="The output directory for published zip artifacts on Windows"/>
 	<Option Name="MayaVersion" Restrict="2019|2020|2022|2023" DefaultValue="2022" Description="Select the maya version"/>
 	<Option Name="MayaPlatform" Restrict="Win64|Linux" DefaultValue="Win64" Description="Select the platform"/>
+	<Option Name="BuildTarget" Restrict="Debug|Development" DefaultValue="Development" Description="Select the build target"/>
 
 	<Agent Name="MayaUnrealLiveLinkPlugin" Type="Win64">
 	
@@ -14,11 +15,12 @@
 		<Property Name="LocalExtraDir" Value="$(RootDir)\Engine\Restricted\NotForLicensees\Extras\MayaUnrealLiveLinkPlugin"/>
 
 		<Node Name="Compile UnrealHeaderTool Maya">
-			<Compile Target="UnrealHeaderTool" Platform="$(MayaPlatform)" Configuration="Development" Arguments="-precompile -nodebuginfo"/>
+			<Compile Target="UnrealHeaderTool" Platform="$(MayaPlatform)" Configuration="$(BuildTarget)" Arguments="-precompile -nodebuginfo"/>
 		</Node>
 
 		<Node Name="Compile Maya $(MayaVersion)" Requires="Compile UnrealHeaderTool Maya">
-			<Compile Target="MayaUnrealLiveLinkPlugin$(MayaVersion)" Platform="$(MayaPlatform)" Configuration="Development" Arguments="-noxge"/>
+			<Compile Target="MayaUnrealLiveLinkPlugin$(MayaVersion)" Platform="$(MayaPlatform)" Configuration="$(BuildTarget)" Arguments="-noxge"/>
+			<Copy From="$(LocalSourceDir)\MayaUnrealLiveLinkPlugin.mod" To="$(LocalBinaryDir)\MayaUnrealLiveLinkPlugin.mod" />
 		</Node>
 
 		<Node Name="Stage Maya Plugin Module" Requires="Compile Maya $(MayaVersion)">

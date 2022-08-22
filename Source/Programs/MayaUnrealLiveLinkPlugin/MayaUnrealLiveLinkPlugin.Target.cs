@@ -69,17 +69,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		return CallerFilePath;
 	}
 
-	public MayaUnrealLiveLinkPluginTarget(TargetInfo Target) : base(Target)
-	{
-		Init(Target, "");
-	}
-
 	public MayaUnrealLiveLinkPluginTarget(TargetInfo Target, string InMayaVersionString) : base(Target)
-	{
-		Init(Target, InMayaVersionString);
-	}
-	
-	public void Init(TargetInfo Target, string InMayaVersionString)
 	{
 		Type = TargetType.Program;
 
@@ -94,6 +84,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		#else
 			string UEVersion = "4_27";
 		#endif // UE_5_0_OR_LATER
+		Name             = MllName + "_" + UEVersion;
 
 		// We only need minimal use of the engine for this plugin
 		bBuildDeveloperTools = false;
@@ -127,10 +118,10 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		string DefaultBinDir = Path.GetFullPath(Path.Combine(SourceDir, "..", "Binaries", Platform.ToString()));
 
 		// We assume that the engine exe resides in Engine/Binaries/[Platform]
-		string EngineBinariesDir = Path.Combine(EngineDir, "Binaries", Platform.ToString());
+		string EngineBinariesDir = Path.Combine(EngineDir, "Binaries", Platform.ToString(), "Maya", InMayaVersionString);
 
 		// Now we calculate the relative path between the default output directory and the engine binaries,
-		// in order to force the output of this program to be in the same folder as th engine.
+		// in order to force the output of this program to be in the same folder as the engine.
 		ExeBinariesSubFolder = (new DirectoryReference(EngineBinariesDir)).MakeRelativeTo(new DirectoryReference(DefaultBinDir));
 
 		// Setting this is necessary since we are creating the binaries outside of Restricted.
@@ -140,7 +131,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		// MayaUnrealLiveLinkPlugin.xml will be unaware of how the files got there.
 
 		// Add a post-build step that copies the output to a file with the .mll extension
-		string OutputName = LaunchModuleName;
+		string OutputName = Name;
 		if (Target.Configuration != UnrealTargetConfiguration.Development)
 		{
 			OutputName = string.Format("{0}-{1}-{2}", OutputName, Target.Platform, Target.Configuration);
@@ -148,23 +139,33 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		}
 
 		string PostBuildBinDir = Path.Combine(DefaultBinDir, "Maya", InMayaVersionString);
-		string SrcOutputFileName = string.Format(@"{0}\{1}.dll", PostBuildBinDir, OutputName);
-		string DstOutputFileName = string.Format(@"{0}\{1}_{2}.mll", PostBuildBinDir, MllName, UEVersion);
 
-		if (Target.Platform.ToString() == "Linux")
-		{
+		bool IsLinux = System.Environment.OSVersion.Platform.ToString() == "Unix";
+
+		if (Target.Platform == UnrealTargetPlatform.Linux) {
 			OutputName = "lib" + OutputName;
 			MllName = "lib" + MllName;
-			SrcOutputFileName = string.Format(@"{0}\{1}.so", EngineBinariesDir, OutputName);
-			DstOutputFileName = string.Format(@"{0}\{1}_{2}.so", PostBuildBinDir, MllName, UEVersion);
 		}
 
 		// Copy binaries
 		PostBuildSteps.Add(string.Format("echo Copying {0} to {1}...", EngineBinariesDir, PostBuildBinDir));
-		PostBuildSteps.Add(string.Format("xcopy /y /i /v \"{0}\\{1}.*\" \"{2}\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir));
 
-		// Copy dll as mll
-		PostBuildSteps.Add(string.Format("echo Copying {0} to {1}...", SrcOutputFileName, DstOutputFileName));
-		PostBuildSteps.Add(string.Format("copy /Y \"{0}\" \"{1}\" 1>nul", SrcOutputFileName, DstOutputFileName));
+		if (!IsLinux)
+		{
+			PostBuildSteps.Add(string.Format("xcopy /y /i /v \"{0}\\{1}.*\" \"{2}\\{3}_{4}.*\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir, MllName, UEVersion));
+		}
+		else
+		{
+			PostBuildSteps.Add(string.Format("mkdir -p \"{2}\" && cp \"{0}\"/\"{1}\".* \"{2}\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir));
+		}
+
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			// Rename dll as mll
+			string OutputFileName = Path.Combine(PostBuildBinDir, MllName + "_" + UEVersion);
+
+			PostBuildSteps.Add(string.Format("echo Renaming {0}.dll to {1}.mll...", OutputFileName, Name));
+			PostBuildSteps.Add(string.Format("xcopy /Y /V \"{0}.dll\" \"{1}*.mll\" 1>nul", OutputFileName, OutputFileName));
+		}
 	}
 }
