@@ -69,7 +69,17 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		return CallerFilePath;
 	}
 
+	public MayaUnrealLiveLinkPluginTarget(TargetInfo Target) : base(Target)
+	{
+		Init(Target, "");
+	}
+
 	public MayaUnrealLiveLinkPluginTarget(TargetInfo Target, string InMayaVersionString) : base(Target)
+	{
+		Init(Target, InMayaVersionString);
+	}
+	
+	private void Init(TargetInfo Target, string InMayaVersionString)
 	{
 		Type = TargetType.Program;
 

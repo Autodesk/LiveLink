@@ -31,7 +31,17 @@ using EpicGames.Core;
 public class MayaUnrealLiveLinkPlugin : ModuleRules
 {
 	string MayaVersion;
-	public MayaUnrealLiveLinkPlugin(ReadOnlyTargetRules Target, string pMayaVersion="") : base(Target)
+	public MayaUnrealLiveLinkPlugin(ReadOnlyTargetRules Target) : base(Target)
+	{
+		Init(Target);
+	}
+
+	public MayaUnrealLiveLinkPlugin(ReadOnlyTargetRules Target, string pMayaVersion) : base(Target)
+	{
+		Init(Target, pMayaVersion);
+	}
+
+	private void Init(ReadOnlyTargetRules Target, string pMayaVersion="")
 	{
 		MayaVersion = pMayaVersion;
 
