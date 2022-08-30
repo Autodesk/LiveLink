@@ -162,7 +162,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 
 		if (!IsLinux)
 		{
-			PostBuildSteps.Add(string.Format("xcopy /y /i /v \"{0}\\{1}.*\" \"{2}\\{3}_{4}.*\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir, MllName, UEVersion));
+			PostBuildSteps.Add(string.Format("xcopy /y /i /v \"{0}\\{1}.*\" \"{2}\\{3}.*\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir, OutputName));
 		}
 		else
 		{
@@ -173,9 +173,10 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		{
 			// Rename dll as mll
 			string OutputFileName = Path.Combine(PostBuildBinDir, MllName + "_" + UEVersion);
+			string SourceFileName = Path.Combine(PostBuildBinDir, OutputName);
 
-			PostBuildSteps.Add(string.Format("echo Renaming {0}.dll to {1}.mll...", OutputFileName, Name));
-			PostBuildSteps.Add(string.Format("xcopy /Y /V \"{0}.dll\" \"{1}*.mll\" 1>nul", OutputFileName, OutputFileName));
+			PostBuildSteps.Add(string.Format("echo Renaming {0}.dll to {1}.mll...", SourceFileName, OutputFileName));
+			PostBuildSteps.Add(string.Format("move /Y \"{0}.dll\" \"{1}.mll\" 1>nul", SourceFileName, OutputFileName));
 		}
 	}
 }
