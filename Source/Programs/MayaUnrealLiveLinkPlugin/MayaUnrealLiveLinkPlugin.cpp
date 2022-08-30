@@ -90,7 +90,7 @@ MSpace::Space G_TransformSpace = MSpace::kTransform;
 
 bool bUEInitialized = false;
 
-const char PluginVersion[] = "v1.1.1";
+const char PluginVersion[] = "v1.1.2";
 const char PluginAppId[] = "3726213941804942083";
 
 static const char OtherUEVersionLoadedEnvVar[] = "OtherUEVersionLoaded";
