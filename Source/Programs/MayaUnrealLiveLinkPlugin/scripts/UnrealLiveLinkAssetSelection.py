@@ -613,7 +613,7 @@ class UnrealLiveLinkAssetSelection(QDialog):
                         break
             else:
                 self._targetAssetTable.clearSelection()
-                self._targetAssetTable.updateFilterList(self.animSequencesBySkeleton[assetPath] if assetPath in self.animSequencesBySkeleton else [])
+                self._targetAssetTable.updateFilterList(self.animSequencesBySkeleton[assetPath] if assetPath in self.animSequencesBySkeleton else [''])
                 self._onFilterTextChanged(self._targetAssetFilterLineEdit.text(), self._targetAssetTable, self._targetAssetFilterLineEdit)
                 self._resizeColumms(self._targetAssetTable)
 

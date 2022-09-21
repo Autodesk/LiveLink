@@ -124,7 +124,10 @@ void OnConnectionStatusChanged()
 
 			PreviousConnectionStatus = bHasConnection;
 
-			MGlobal::executeTaskOnIdle(RebuildStreamSubjects, nullptr, MGlobal::kVeryLowIdlePriority);
+			if (bHasConnection)
+			{
+				MGlobal::executeTaskOnIdle(RebuildStreamSubjects, nullptr, MGlobal::kVeryLowIdlePriority);
+			}
 		}
 	}		
 }
@@ -1637,6 +1640,50 @@ int FindMatchingDagPath(const MString& DagPathName, const MFnDagNode& DagNode, c
 	return PathIndex;
 }
 
+bool FindNodeAffectedByConstraint(const MObject& Node, const MStringArray& SubjectPaths, MObject& NodeWithConstraint)
+{
+	MFnDependencyNode DependNode(Node);
+	MObject Constraint;
+	MPlug ParentMatrixPlugArray = DependNode.findPlug("parentMatrix", false);
+	if (!ParentMatrixPlugArray.isNull() && ParentMatrixPlugArray.isArray())
+	{
+		const unsigned int SubjectPathLen = SubjectPaths.length();
+		for (unsigned int ParentMatrixIndex = 0; ParentMatrixIndex < ParentMatrixPlugArray.numElements(); ++ParentMatrixIndex)
+		{
+			MPlug DependPlug = ParentMatrixPlugArray[ParentMatrixIndex];
+			MPlugArray DependConnections;
+			DependPlug.connectedTo(DependConnections, false, true);
+			for (unsigned int DependIdx = 0; DependIdx < DependConnections.length(); ++DependIdx)
+			{
+				MPlug DependConnection = DependConnections[DependIdx];
+				MObject DependObject = DependConnection.node();
+				if (DependObject.hasFn(MFn::kConstraint))
+				{
+					for (unsigned int path = 0; path < SubjectPathLen; ++path)
+					{
+						const MString& SubjectPath = SubjectPaths[path];
+
+						MSelectionList SelectionList;
+						SelectionList.add(SubjectPath);
+						MDagPath SubjectDagPath;
+						MObject SubjectObj;
+						SelectionList.getDependNode(0, SubjectObj);
+						SelectionList.getDagPath(0, SubjectDagPath);
+						MFnDagNode DagNode(SubjectDagPath);
+						if (DagNode.isParentOf(DependObject))
+						{
+							NodeWithConstraint = SubjectDagPath.node();
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 {
 	auto& MayaStreamManager = MayaLiveLinkStreamManager::TheOne();
@@ -1796,44 +1843,10 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 					// Check for a constraint
 					else if (Node.hasFn(MFn::kTransform))
 					{
-						bool bNodeAffectedByConstraintFound = false;
-						MFnDependencyNode DependNode(Node);
-						MObject Constraint;
-						MPlug ParentMatrixPlugArray = DependNode.findPlug("parentMatrix", false);
-						if (!ParentMatrixPlugArray.isNull() && ParentMatrixPlugArray.isArray())
+						MObject NodeWithConstraint;
+						if (FindNodeAffectedByConstraint(Node, SubjectPaths, NodeWithConstraint))
 						{
-							for (unsigned int ParentMatrixIndex = 0; ParentMatrixIndex < ParentMatrixPlugArray.numElements() && !bNodeAffectedByConstraintFound; ++ParentMatrixIndex)
-							{
-								MPlug DependPlug = ParentMatrixPlugArray[ParentMatrixIndex];
-								MPlugArray DependConnections;
-								DependPlug.connectedTo(DependConnections, false, true);
-								for (unsigned int DependIdx = 0; DependIdx < DependConnections.length() && !bNodeAffectedByConstraintFound; ++DependIdx)
-								{
-									MPlug DependConnection = DependConnections[DependIdx];
-									MObject DependObject = DependConnection.node();
-									if (DependObject.hasFn(MFn::kConstraint))
-									{
-										for (unsigned int path = 0; path < SubjectPathLen; ++path)
-										{
-											MString& SubjectPath = SubjectPaths[path];
-
-											MSelectionList SelectionList;
-											SelectionList.add(SubjectPath);
-											MDagPath SubjectDagPath;
-											MObject SubjectObj;
-											SelectionList.getDependNode(0, SubjectObj);
-											SelectionList.getDagPath(0, SubjectDagPath);
-											MFnDagNode DagNode(SubjectDagPath);
-											if (DagNode.isParentOf(DependObject))
-											{
-												Node = SubjectDagPath.node();
-												bNodeAffectedByConstraintFound = true;
-												break;
-											}
-										}
-									}
-								}
-							}
+							Node = NodeWithConstraint;
 						}
 					}
 
@@ -2048,6 +2061,15 @@ void OnAnimKeyframeEdited(MObjectArray& Objects, void* ClientData)
 							};
 							
 							SubjectOwningBlendShape = UpdateNodeAndPlugForBlendShape(Plug, UpdateNodeAndPlugForBlendShape, Node, Plug);
+							if (!SubjectOwningBlendShape)
+							{
+								// Check for a constraint
+								MObject NodeWithConstraint;
+								if (FindNodeAffectedByConstraint(Node, SubjectPaths, NodeWithConstraint))
+								{
+									Node = NodeWithConstraint;
+								}
+							}
 						}
 
 						if (Node.hasFn(MFn::kHikIKEffector))

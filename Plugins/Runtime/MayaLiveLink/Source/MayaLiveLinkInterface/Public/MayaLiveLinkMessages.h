@@ -95,7 +95,6 @@ struct FMayaLiveLinkClearSubject
 	FMayaLiveLinkClearSubject() {}
 	FMayaLiveLinkClearSubject(const FName& InSubjectName) : SubjectName(InSubjectName) {}
 };
-// #endif
 
 USTRUCT()
 struct FMayaLiveLinkSourceShutdownMessage

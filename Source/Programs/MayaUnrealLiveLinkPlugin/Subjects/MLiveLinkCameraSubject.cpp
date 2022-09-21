@@ -134,8 +134,10 @@ void MLiveLinkCameraSubject::UnlinkUnrealAsset()
 {
 	bIsCineCamera = false;
 	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
 	SetStreamType(StreamMode);
 	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
 }
 
 bool MLiveLinkCameraSubject::IsLinked() const

@@ -953,8 +953,10 @@ void MLiveLinkJointHierarchySubject::LinkUnrealAsset(const LinkAssetInfo& LinkIn
 void MLiveLinkJointHierarchySubject::UnlinkUnrealAsset()
 {
 	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
 	SetStreamType(StreamMode);
 	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
 }
 
 void MLiveLinkJointHierarchySubject::OnTimeUnitChanged()

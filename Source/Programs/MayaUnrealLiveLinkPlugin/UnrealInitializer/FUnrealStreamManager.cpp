@@ -104,7 +104,10 @@ template FMayaLiveLinkLevelSequenceFrameData& FUnrealStreamManager::InitializeAn
 //
 /*!	\brief	Private default constructor.
 */
-FUnrealStreamManager::FUnrealStreamManager() {}
+FUnrealStreamManager::FUnrealStreamManager()
+: bUpdateWhenDisconnected(false)
+{
+}
 
 //======================================================================
 //
@@ -175,7 +178,7 @@ bool	FUnrealStreamManager::SetLiveLinkProvider(LiveLinkSource Producer)
 */
 bool FUnrealStreamManager::RebuildPropSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return false;
 	}
@@ -211,7 +214,7 @@ bool FUnrealStreamManager::RebuildPropSubjectData(const FName& SubjectName, cons
 */
 void FUnrealStreamManager::OnStreamPropSubject(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -236,7 +239,7 @@ void FUnrealStreamManager::OnStreamPropSubject(const FName& SubjectName, const F
 */
 bool FUnrealStreamManager::RebuildLightSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return false;
 	}
@@ -275,7 +278,7 @@ bool FUnrealStreamManager::RebuildLightSubjectData(const FName& SubjectName, con
 */
 void FUnrealStreamManager::OnStreamLightSubject(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -304,7 +307,7 @@ void FUnrealStreamManager::OnStreamLightSubject(const FName& SubjectName, const 
 */
 bool FUnrealStreamManager::RebuildBaseCameraSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return false;
 	}
@@ -340,7 +343,7 @@ bool FUnrealStreamManager::RebuildBaseCameraSubjectData(const FName& SubjectName
 */
 void FUnrealStreamManager::StreamCamera(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -369,7 +372,7 @@ void FUnrealStreamManager::StreamCamera(const FName& SubjectName, const FString&
 */
 bool FUnrealStreamManager::RebuildCameraSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return false;
 	}
@@ -393,7 +396,7 @@ bool FUnrealStreamManager::RebuildCameraSubjectData(const FName& SubjectName, co
 */
 bool FUnrealStreamManager::RebuildJointHierarchySubjectData(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return false;
 	}
@@ -425,7 +428,7 @@ bool FUnrealStreamManager::RebuildJointHierarchySubjectData(const FName& Subject
 */
 void FUnrealStreamManager::OnStreamJointHierarchySubject(const FName& SubjectName, const FString& StreamMode)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -442,7 +445,7 @@ void FUnrealStreamManager::OnStreamJointHierarchySubject(const FName& SubjectNam
 
 void FUnrealStreamManager::RebuildAnimSequence(const FName& SubjectName)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -452,7 +455,7 @@ void FUnrealStreamManager::RebuildAnimSequence(const FName& SubjectName)
 
 void FUnrealStreamManager::OnStreamAnimSequence(const FName& SubjectName)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -462,7 +465,7 @@ void FUnrealStreamManager::OnStreamAnimSequence(const FName& SubjectName)
 
 void FUnrealStreamManager::RebuildLevelSequence(const FName& SubjectName)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
@@ -472,10 +475,15 @@ void FUnrealStreamManager::RebuildLevelSequence(const FName& SubjectName)
 
 void FUnrealStreamManager::OnStreamLevelSequence(const FName& SubjectName)
 {
-	if (!LiveLinkProvider->HasConnection())
+	if (!HasConnection())
 	{
 		return;
 	}
 
 	LiveLinkProvider->UpdateSubjectFrameData(SubjectName, UMayaLiveLinkLevelSequenceRole::StaticClass(), MoveTemp(WorkingFrameData));
+}
+
+bool FUnrealStreamManager::HasConnection() const
+{
+	return bUpdateWhenDisconnected || (LiveLinkProvider && LiveLinkProvider->HasConnection());
 }

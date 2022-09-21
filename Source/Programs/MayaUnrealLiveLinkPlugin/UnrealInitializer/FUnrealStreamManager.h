@@ -46,6 +46,8 @@ private:
 	FLiveLinkStaticDataStruct WorkingStaticData;
 	FLiveLinkFrameDataStruct  WorkingFrameData;
 
+	bool bUpdateWhenDisconnected;
+
 public:
 
 	//! Singleton object. Use this function to access it.
@@ -54,11 +56,16 @@ public:
 	TSharedPtr<class ILiveLinkProducer> GetLiveLinkProvider();
 	bool SetLiveLinkProvider(LiveLinkSource Producer);
 
+	void UpdateWhenDisconnected(bool bUpdate) { bUpdateWhenDisconnected = bUpdate; }
+	bool IsUpdateWhenDisconnected() const { return bUpdateWhenDisconnected; }
+
 private:
 
 	//! Private constructor and destructor for this singleton object
 	FUnrealStreamManager();
 	~FUnrealStreamManager();
+
+	bool HasConnection() const;
 
 public:
 

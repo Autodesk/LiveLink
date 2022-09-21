@@ -444,12 +444,13 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 button.ignoreMouseEvent = True
                 button.setIconSize(QSize(size24, size24))
                 linkAllowedAndConnected = linkAllowed and self.windowParent.ConnectedState
-                button.setEnabled(linkAllowedAndConnected and (SubjectPath in self.linkedAssets) and (SubjectPath in self.targetAssets))
+                hasLinkInfo = (SubjectPath in self.linkedAssets) and (SubjectPath in self.targetAssets)
+                button.setEnabled(linkAllowedAndConnected and hasLinkInfo)
                 hlayout.addWidget(button)
                 button = HoverButton.fromIcon(linkIcon, linkHoverIcon, '', widget)
                 button.ignoreMouseEvent = True
                 button.setIconSize(QSize(size24, size24))
-                button.setEnabled(linkAllowedAndConnected)
+                button.setEnabled(linkAllowedAndConnected or (hasLinkInfo and isLinked))
                 hlayout.addWidget(button)
                 widget.setLayout(hlayout)
                 self.setCellWidget(rowCount, 5, widget)

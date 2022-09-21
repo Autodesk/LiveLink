@@ -90,6 +90,7 @@ private:
 	FDelegateHandle OnSequencerGlobalTimeChangedHandle;
 	TWeakPtr<ISequencer> WeakSequencer;
 	FQualifiedFrameTime LastFrameTime;
+	FFrameTime LastAnimSequenceTime;
 	bool bLevelSequenceEditorTimeSync;
 	bool bSetGlobalTime;
 

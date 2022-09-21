@@ -249,8 +249,10 @@ void MLiveLinkLightSubject::LinkUnrealAsset(const LinkAssetInfo& LinkInfo)
 void MLiveLinkLightSubject::UnlinkUnrealAsset()
 {
 	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
 	SetStreamType(StreamMode);
 	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
 }
 
 bool MLiveLinkLightSubject::IsLinked() const

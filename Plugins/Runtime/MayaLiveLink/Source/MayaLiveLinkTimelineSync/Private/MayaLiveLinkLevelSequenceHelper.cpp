@@ -732,13 +732,23 @@ T* UMayaLiveLinkLevelSequenceHelper::AddOrFindTrack(const FGuid& TrackBinding,
 													UMovieScene& MovieScene,
 													const TCHAR* Path)
 {
-	// Add a track to the moving scene
+	// Check if the track already exists
 	T* Track = MovieScene.FindTrack<T>(TrackBinding, FName(PropertyName));
 	if (Track)
 	{
 		return Track;
 	}
+	else if (Path)
+	{
+		// Find the track using the provided path
+		Track = MovieScene.FindTrack<T>(TrackBinding, FName(*(FString(Path) + FString(".") + PropertyName)));
+		if (Track)
+		{
+			return Track;
+		}
+	}
 
+	// Add a track to the moving scene
 	Track = MovieScene.AddTrack<T>(TrackBinding);
 	if (Track)
 	{
@@ -799,8 +809,48 @@ void UMayaLiveLinkLevelSequenceHelper::ResizeTracks(UMovieScene& MovieScene,
 {
 	auto PlaybackRange = MovieScene.GetPlaybackRange();
 
+	auto ResizeTrack = [](UMovieSceneTrack& Track, const FFrameNumberRange& PlaybackRange)
+	{
+		if (Track.GetAllSections().Num() == 0)
+		{
+			return;
+		}
+
+		const auto& Sections = Track.GetAllSections();
+
+		// Check if we need to update the track end
+		auto LastSection = Track.GetAllSections().Last();
+		auto Range = LastSection->GetTrueRange();
+		bool bUpdateRange = false;
+		if (Range.GetLowerBound().IsOpen() || Range.GetUpperBound().IsOpen())
+		{
+			Range = TRange<FFrameNumber>(PlaybackRange.GetLowerBoundValue(), PlaybackRange.GetUpperBoundValue());
+			bUpdateRange = true;
+		}
+		if (bUpdateRange || PlaybackRange.GetUpperBoundValue() != Range.GetUpperBoundValue())
+		{
+			Range.SetUpperBoundValue(PlaybackRange.GetUpperBoundValue());
+			LastSection->SetRange(Range);
+		}
+
+		// Check if we need to update the track beginning
+		auto FirstSection = Track.GetAllSections().Num() > 1 ? Sections[0] : LastSection;
+		auto FirstRange = FirstSection->GetTrueRange();
+		bUpdateRange = false;
+		if (FirstRange.GetLowerBound().IsOpen() || FirstRange.GetUpperBound().IsOpen())
+		{
+			FirstRange = TRange<FFrameNumber>(PlaybackRange.GetLowerBoundValue(), Range.GetLowerBoundValue());
+			bUpdateRange = true;
+		}
+		if (bUpdateRange || PlaybackRange.GetLowerBoundValue() != FirstRange.GetLowerBoundValue())
+		{
+			Range.SetLowerBoundValue(PlaybackRange.GetLowerBoundValue());
+			FirstSection->SetRange(Range);
+		}
+	};
+
 	// Check if we need to resize the tracks
-	auto ResizeBindingTracks = [&MovieScene, &PlaybackRange](const FGuid& Binding)
+	auto ResizeBindingTracks = [&MovieScene, &PlaybackRange](const FGuid& Binding, auto& ResizeTrackFunc)
 	{
 		if (!Binding.IsValid())
 		{
@@ -815,50 +865,21 @@ void UMayaLiveLinkLevelSequenceHelper::ResizeTracks(UMovieScene& MovieScene,
 
 		for (auto& Track : MovieSceneBinding->GetTracks())
 		{
-			if (Track->GetAllSections().Num() == 0)
-			{
-				continue;
-			}
-
-			const auto& Sections = Track->GetAllSections();
-
-			// Check if we need to update the track end
-			auto LastSection = Track->GetAllSections().Last();
-			auto Range = LastSection->GetTrueRange();
-			bool bUpdateRange = false;
-			if (Range.GetLowerBound().IsOpen() || Range.GetUpperBound().IsOpen())
-			{
-				Range = TRange<FFrameNumber>(PlaybackRange.GetLowerBoundValue(), PlaybackRange.GetUpperBoundValue());
-				bUpdateRange = true;
-			}
-			if (bUpdateRange || PlaybackRange.GetUpperBoundValue() != Range.GetUpperBoundValue())
-			{
-				Range.SetUpperBoundValue(PlaybackRange.GetUpperBoundValue());
-				LastSection->SetRange(Range);
-			}
-
-			// Check if we need to update the track beginning
-			auto FirstSection = Track->GetAllSections().Num() > 1 ? Sections[0] : LastSection;
-			auto FirstRange = FirstSection->GetTrueRange();
-			bUpdateRange = false;
-			if (FirstRange.GetLowerBound().IsOpen() || FirstRange.GetUpperBound().IsOpen())
-			{
-				FirstRange = TRange<FFrameNumber>(PlaybackRange.GetLowerBoundValue(), Range.GetLowerBoundValue());
-				bUpdateRange = true;
-			}
-			if (bUpdateRange || PlaybackRange.GetLowerBoundValue() != FirstRange.GetLowerBoundValue())
-			{
-				Range.SetLowerBoundValue(PlaybackRange.GetLowerBoundValue());
-				FirstSection->SetRange(Range);
-			}
+			ResizeTrackFunc(*Track, PlaybackRange);
 		}
 	};
 
 	// Resize the actor's tracks
-	ResizeBindingTracks(ActorBinding);
+	ResizeBindingTracks(ActorBinding, ResizeTrack);
 
 	// Resize the actor component's tracks
-	ResizeBindingTracks(TrackBinding);
+	ResizeBindingTracks(TrackBinding, ResizeTrack);
+
+	UMovieSceneTrack* CameraCutTrack = MovieScene.GetCameraCutTrack();
+	if (CameraCutTrack)
+	{
+		ResizeTrack(*CameraCutTrack, PlaybackRange);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
