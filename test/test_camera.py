@@ -160,7 +160,7 @@ class test_camera(unittest.TestCase):
         # create camera for test
         cameraNode, cameraRoot, cameraShape, cameraUp, cameraAim = self.createCameraForTest()
         
-        # set Aspect Ration
+        # set Aspect Ratio
         requestedAR = 1.33
         cmds.camera(cameraShape, e=True, ar=requestedAR)
         self.assertAlmostEqual(cmds.camera(cameraShape, q=True, ar=True), requestedAR, msg="Aspect Ratio not set on camera")
@@ -168,7 +168,7 @@ class test_camera(unittest.TestCase):
         # Export to JSON
         staticData, frameData = self.exportAndGetJsonData(cameraRoot)
         
-        # verify Aspect Ration is part of the static/frame data and has expected value
+        # verify Aspect Ratio is part of the static/frame data and has expected value
         self.assertTrue('AspectRatio' in staticData, msg="Aspect Ratio not found in staticData")
         self.assertTrue('AspectRatio' in frameData, msg="Aspect Ratio not found in frameData")
         self.assertAlmostEqual(frameData['AspectRatio'], requestedAR, msg="Aspect Ratio not of expected value in frameData")
@@ -238,4 +238,32 @@ class test_camera(unittest.TestCase):
         # delete camera, aim and up nodes
         cmds.delete(cameraNode, cameraUp, cameraAim)
         log.info("Completed")
-        
+
+    def test_cameraFilmGate(self):
+        log = logging.getLogger( "test_camera.test_cameraFilmGate" )
+        log.info("Started")
+        # create camera for test
+        cameraNode, cameraRoot, cameraShape, cameraUp, cameraAim = self.createCameraForTest()
+
+        # set film gate (in inches)
+        filmGateWidth = 1.575
+        filmGateHeight = 0.945
+        filmGateWidthMM = float(cmds.convertUnit(str(filmGateWidth), fromUnit='in', toUnit='mm')[:-2])
+        filmGateHeightMM = float(cmds.convertUnit(str(filmGateHeight), fromUnit='in', toUnit='mm')[:-2])
+        cmds.camera(cameraShape, e=True, hfa=filmGateWidth)
+        cmds.camera(cameraShape, e=True, vfa=filmGateHeight)
+        self.assertAlmostEqual(cmds.camera(cameraShape, q=True, hfa=True), filmGateWidth, msg="Film gate width not set on camera")
+        self.assertAlmostEqual(cmds.camera(cameraShape, q=True, vfa=True), filmGateHeight, msg="Film gate height not set on camera")
+
+        # Export to JSON
+        staticData, frameData = self.exportAndGetJsonData(cameraRoot)
+
+        # Verify FilmBack width/height is part of the static data and has expected value
+        self.assertTrue('FilmBackWidth' in staticData, msg="FilmBackWidth not found in staticData")
+        self.assertTrue('FilmBackHeight' in staticData, msg="FilmBackHeight not found in staticData")
+        self.assertAlmostEqual(staticData['FilmBackWidth'], filmGateWidthMM, msg="FilmBackWidth not of expected value in staticData", delta=0.00001)
+        self.assertAlmostEqual(staticData['FilmBackHeight'], filmGateHeightMM, msg="FilmBackHeight not of expected value in staticData", delta=0.00001)
+
+        # delete camera, aim and up nodes
+        cmds.delete(cameraNode, cameraUp, cameraAim)
+        log.info("Completed")

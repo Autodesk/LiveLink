@@ -139,7 +139,7 @@ public:
 	virtual bool HasConnection() const override;
 
 	/** Function for managing connection status changed delegate. */
-	FDelegateHandle RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged);
+	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FMayaLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) override;
 
 	/** Function for managing connection status changed delegate. */
 	void UnregisterConnStatusChangedHandle(FDelegateHandle Handle);
@@ -169,6 +169,9 @@ private:
 
 	void UpdateSubjectStaticData(const FName& SubjectName, FLiveLinkTransformStaticData& StaticData);
 	void UpdateSubjectFrameData(const FName& SubjectName, const FLiveLinkTransformFrameData& FrameData);
+
+	void UpdateSubjectStaticData(const FName& SubjectName, struct FMayaLiveLinkAnimSequenceStaticData& StaticData);
+	void UpdateSubjectFrameData(const FName& SubjectName, const struct FMayaLiveLinkAnimSequenceFrameData& FrameData);
 
 	// JSON Writer helper functions
 	void WriteKey(const char* KeyName, bool Supported, bool Value);
@@ -203,7 +206,7 @@ private:
 
 private:
 	// Delegate to notify interested parties when the client sources have changed
-	FLiveLinkProviderConnectionStatusChanged OnConnectionStatusChanged;
+	FMayaLiveLinkProviderConnectionStatusChanged OnConnectionStatusChanged;
 
 #if PLATFORM_WINDOWS
 	SOCKET Socket;

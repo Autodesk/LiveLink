@@ -22,11 +22,7 @@
 
 using UnrealBuildTool;
 using System.IO;
-#if !UE_5_0_OR_LATER
-using Tools.DotNETCommon;
-#else
 using EpicGames.Core;
-#endif
 
 public class MayaUnrealLiveLinkPlugin : ModuleRules
 {
@@ -65,13 +61,14 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
 		{
 			"Core",
 			"CoreUObject",
-			"ApplicationCore",
 			"Messaging",
+			"MessagingCommon",
 			"Networking",
 			"Projects",
 			"UdpMessaging",
 			"LiveLinkInterface",
 			"LiveLinkMessageBusFramework",
+			"MayaLiveLinkInterface",
 		});
 
 
@@ -126,14 +123,6 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
 			{
 				PublicAdditionalLibraries.Add(Path.Combine(MayaLibDir, MayaLibPrefix + MayaLib + MayaLibExtension));
 			}
-
-			PublicDefinitions.Add(
-			#if UE_5_0_OR_LATER
-				"UE_5_0_OR_LATER=1"
-			#else
-				"UE_5_0_OR_LATER=0"
-			#endif // UE_5_0_OR_LATER
-				);
 
 		}
 		//else

@@ -34,6 +34,15 @@
 #include "Roles/LiveLinkCameraTypes.h"
 #include "Roles/LiveLinkAnimationTypes.h"
 
+THIRD_PARTY_INCLUDES_START
+#include <maya/MAnimControl.h>
+#include <maya/MFnDagNode.h>
+#include <maya/MGlobal.h>
+#include <maya/MItDag.h>
+#include <maya/MSelectionList.h>
+THIRD_PARTY_INCLUDES_END
+
+extern void StreamOnIdle(std::shared_ptr<IMStreamedEntity>& Subject, MGlobal::MIdleTaskPriority Priority);
 
 //======================================================================
 //
@@ -42,6 +51,7 @@
 MayaLiveLinkStreamManager::MayaLiveLinkStreamManager()
 { 
 	StreamedSubjects.clear();
+	AnimSequenceStreamingPaused = false;
 }
 
 //======================================================================
@@ -135,7 +145,7 @@ bool MayaLiveLinkStreamManager::AddSubject(MItDag& DagIterator, const MString& N
 				SubjectName = MakeUniqueName(SubjectName);
 				AddLightSubject(SubjectName.asChar(),
 					CurrentItemPath,
-					static_cast<MLiveLinkLightSubject::FLightStreamMode>(StreamType),
+					static_cast<MLiveLinkLightSubject::MLightStreamMode>(StreamType),
 					Index);
 				SubjectNotInList = true;
 			}
@@ -201,6 +211,26 @@ bool MayaLiveLinkStreamManager::IsInSubjectList(const MString& DagPath) const
 	return false;
 }
 
+//======================================================================
+//
+/*!	\brief	Check if an object is in the StreamedSubject list.
+
+\param[in] DagPath	DagPath of the subject as MString
+
+\return	True when subject was found in StreamedSubject list.
+
+*/
+bool MayaLiveLinkStreamManager::IsInSubjectList(const MDagPath& DagPath) const
+{
+	for (auto& Subject : StreamedSubjects)
+	{
+		if (DagPath == Subject->GetDagPath())
+		{
+			return true;
+		}
+	}
+	return false;
+}
 //======================================================================
 //
 /*!	\brief	Create a unique name for a subject being added, if a duplicate already exists in
@@ -326,7 +356,7 @@ void  MayaLiveLinkStreamManager::AddPropSubject(const MString& SubjectName, cons
 
 */
 void  MayaLiveLinkStreamManager::AddLightSubject(const MString& SubjectName, const MDagPath& RootPath,
-	MLiveLinkLightSubject::FLightStreamMode StreamType, int32_t Index)
+	MLiveLinkLightSubject::MLightStreamMode StreamType, int32_t Index)
 {
 	AddSubjectOfType<MLiveLinkLightSubject>(Index, SubjectName, RootPath, StreamType);
 }
@@ -439,6 +469,96 @@ void MayaLiveLinkStreamManager::GetSubjectTypes(MStringArray& Entries) const
 
 //======================================================================
 //
+/*!	\brief	Get all the subject's linked assets
+
+\param[in] Entries Reference to string array to store the subject linked assets
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectLinkedAssets(MStringArray& Entries) const
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Entries.append(Subject->GetLinkedAsset());
+		}
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get all the subject's target assets
+
+\param[in] Entries Reference to string array to store the subject target assets
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectTargetAssets(MStringArray& Entries) const
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Entries.append(Subject->GetTargetAsset());
+		}
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get all the subject's link status
+
+\param[in] Entries Reference to string array to store the subject link status
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectLinkStatus(MStringArray& Entries) const
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Entries.append(Subject->IsLinked() ? "1" : "0");
+		}
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get all the subject's target class
+
+\param[in] Entries Reference to string array to store the subject target assets
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectClasses(MStringArray& Entries) const
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Entries.append(Subject->GetClass());
+		}
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get all the subject's native unreal class (for blueprints)
+
+\param[in] Entries Reference to string array to store the subject target assets
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectUnrealNativeClasses(MStringArray& Entries) const
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Entries.append(Subject->GetUnrealNativeClass());
+		}
+	}
+}
+
+//======================================================================
+//
 /*!	\brief	Get the stream type using a subject's full DAG path from the root.
 
 	\param[in] Path DAG path for the subject for which we need stream type.
@@ -446,7 +566,7 @@ void MayaLiveLinkStreamManager::GetSubjectTypes(MStringArray& Entries) const
 	\return Stream type as an int.
 
 */
-int MayaLiveLinkStreamManager::GetStreamTypeByDagPath(const MString& Path)
+int MayaLiveLinkStreamManager::GetStreamTypeByDagPath(const MString& Path) const
 {
 	auto Subject = GetSubjectByDagPath(Path);
 	if (nullptr != Subject)
@@ -536,19 +656,183 @@ bool MayaLiveLinkStreamManager::ChangeSubjectName(const MString& SubjectDagPath,
 
 //======================================================================
 //
-/*!	\brief	Get a subject as IMStreamedEnitty given it's full DAG path from the root.
+/*!	\brief	Link a subject with an Unreal asset/actor and set the anim/level sequence path
+
+\param[in] SubjectPathIn     DAG path for the subject.
+\param[in] LinkInfo          Link asset info
+*/
+void MayaLiveLinkStreamManager::LinkUnrealAsset(const MString& SubjectPathIn,
+												const IMStreamedEntity::LinkAssetInfo& LinkInfo)
+{
+	if (auto Subject = GetSubjectByDagPath(SubjectPathIn))
+	{
+		Subject->LinkUnrealAsset(LinkInfo);
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Unlink a subject from a previously linked Unreal asset/actor
+
+\param[in] SubjectPathIn     DAG path for the subject.
+*/
+void MayaLiveLinkStreamManager::UnlinkUnrealAsset(const MString& SubjectPathIn)
+{
+	if (auto Subject = GetSubjectByDagPath(SubjectPathIn))
+	{
+		Subject->UnlinkUnrealAsset();
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Update the progress bar UI
+
+\param[in] FrameNumber        Frame number
+\param[in] NumberOfFrames     Number of frames
+\param[in/out] LastPercentage Percentage since calling this function the last time
+*/
+void MayaLiveLinkStreamManager::UpdateProgressBar(int FrameNumber, int NumberOfFrames, int& LastPercentage) const
+{
+	const int Percentage = (FrameNumber + 1) * 100 / NumberOfFrames;
+	if (Percentage != LastPercentage)
+	{
+		MGlobal::executeCommand(MString("MayaUnrealLiveLinkUpdateLinkProgress ") + Percentage);
+		LastPercentage = Percentage;
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get a subject as IMStreamedEntity given it's full DAG path from the root.
 
 	\param[in] Path DAG path for the subject.
 
 	\return Pointer to the subject as IMStreamedEntity
 
 */
-IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectByDagPath(const MString& Path)
+IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectByDagPath(const MString& Path) const
 {
-	auto Found = std::find_if(StreamedSubjects.begin(), StreamedSubjects.end(), [&Path](std::shared_ptr<IMStreamedEntity>& Subject) {
+	auto Found = std::find_if(StreamedSubjects.cbegin(), StreamedSubjects.cend(), [&Path](const std::shared_ptr<IMStreamedEntity>& Subject) {
 		if (Subject)
 		{
 			if (Subject->GetDagPath().fullPathName() == Path)
+			{
+				return Subject;
+			}
+		}
+		return std::shared_ptr<IMStreamedEntity>();
+	});
+
+	if (StreamedSubjects.end() != Found)
+	{
+		return (*Found).get();
+	}
+
+	return nullptr;
+}
+
+//======================================================================
+//
+/*!	\brief	Get a subject as IMStreamedEntity given it's full DAG path from the root.
+
+	\param[in] Path DAG path for the subject.
+
+	\return Pointer to the subject as IMStreamedEntity
+
+*/
+IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectByDagPath(const MDagPath& Path) const
+{
+	auto Found = std::find_if(StreamedSubjects.cbegin(), StreamedSubjects.cend(), [&Path](const std::shared_ptr<IMStreamedEntity>& Subject) {
+		if (Subject)
+		{
+			if (Subject->GetDagPath() == Path)
+			{
+				return Subject;
+			}
+		}
+		return std::shared_ptr<IMStreamedEntity>();
+	});
+
+	if (StreamedSubjects.end() != Found)
+	{
+		return (*Found).get();
+	}
+
+	return nullptr;
+}
+
+//======================================================================
+//
+/*!	\brief	Get the subjects under a common parent path.
+
+	\param[in] Parent DAG path.
+
+	\param[out] List of subjects under the DAG path.
+
+*/
+void MayaLiveLinkStreamManager::GetSubjectsFromParentPath(const MDagPath& Path, std::vector<IMStreamedEntity*>& Subjects) const
+{
+	MStatus Status;
+	MFnDagNode ParentDagNode(Path, &Status);
+	for (const std::shared_ptr<IMStreamedEntity>& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			MObject Node = Subject->GetDagPath().node();
+			if (ParentDagNode.isParentOf(Node))
+			{
+				Subjects.push_back(Subject.get());
+			}
+		}
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Get a subject as IMStreamedEntity given a blendshape name owned by this subject.
+
+	\param[in] Blendshape name
+
+	\return Pointer to the subject as IMStreamedEntity
+
+*/
+IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectOwningBlendShape(const MString& Name) const
+{
+	auto Found = std::find_if(StreamedSubjects.cbegin(), StreamedSubjects.cend(), [&Name](const std::shared_ptr<IMStreamedEntity>& Subject) {
+		if (Subject)
+		{
+			if (Subject->IsOwningBlendShape(Name))
+			{
+				return Subject;
+			}
+		}
+		return std::shared_ptr<IMStreamedEntity>();
+	});
+
+	if (StreamedSubjects.end() != Found)
+	{
+		return (*Found).get();
+	}
+
+	return nullptr;
+}
+
+//======================================================================
+//
+/*!	\brief	Get a subject as IMStreamedEntity given a HumanIK character name owned by this subject.
+
+	\param[in] HikIKEffector object
+
+	\return Pointer to the subject as IMStreamedEntity
+
+*/
+IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectByHikIKEffector(const MObject& Object) const
+{
+	auto Found = std::find_if(StreamedSubjects.cbegin(), StreamedSubjects.cend(), [&Object](const std::shared_ptr<IMStreamedEntity>& Subject) {
+		if (Subject)
+		{
+			if (Subject->IsUsingHikIKEffector(Object))
 			{
 				return Subject;
 			}
@@ -570,9 +854,6 @@ IMStreamedEntity* MayaLiveLinkStreamManager::GetSubjectByDagPath(const MString& 
 
 	\param[in] SubjectPathIn DAG path for the subject.
 	\param[in] StreamTypeIn  New stream type for the subject.
-
-	\return Pointer to the subject as IMStreamedEntity
-
 */
 void MayaLiveLinkStreamManager::ChangeStreamType(const MString& SubjectPathIn, const MString& StreamTypeIn)
 {
@@ -626,13 +907,14 @@ void MayaLiveLinkStreamManager::ValidateSubjects(bool NeedToRefreshUI)
 /*!	\brief	Validate the subjects and rebuild all the streamed subjects.
 
 	\param[in] NeedToRefreshUI Need to refresh the UI
+	\param[in] ForceRelink     Need to relink linked assets
 */
-void MayaLiveLinkStreamManager::RebuildSubjects(bool NeedToRefreshUI)
+void MayaLiveLinkStreamManager::RebuildSubjects(bool NeedToRefreshUI, bool ForceRelink)
 {
 	ValidateSubjects(NeedToRefreshUI);
 	for (const auto& Subject : StreamedSubjects)
 	{
-		Subject->RebuildSubjectData();
+		Subject->RebuildSubjectData(ForceRelink);
 	}
 }
 
@@ -743,6 +1025,42 @@ void MayaLiveLinkStreamManager::StreamSubject(const MDagPath& DagPath) const
 
 //======================================================================
 //
+/*!	\brief	Set anim sequence streaming state
+
+*/
+void MayaLiveLinkStreamManager::PauseAnimSequenceStreaming(bool PauseState)
+{
+	AnimSequenceStreamingPaused = PauseState;
+}
+
+//======================================================================
+//
+/*!	\brief	Return anim sequence streaming state
+
+*/
+bool MayaLiveLinkStreamManager::IsAnimSequenceStreamingPaused()
+{
+	return AnimSequenceStreamingPaused;
+}
+
+//======================================================================
+//
+/*!	\brief	Tell every subject in StreamedSubject list that anim curves are about to be edited.
+
+*/
+void MayaLiveLinkStreamManager::OnPreAnimCurvesEdited()
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Subject->OnPreAnimCurvesEdited();
+		}
+	}
+}
+
+//======================================================================
+//
 /*!	\brief	This function is called by OnAttributeChnaged callback. It forwards the callback
 			to every subject in StreamedSubject list.
 
@@ -756,18 +1074,33 @@ void MayaLiveLinkStreamManager::OnAttributeChanged(const MDagPath& DagPath, cons
 	double StreamTime = FPlatformTime::Seconds();
 	auto FrameNumber = MAnimControl::currentTime().value();
 
-	for (const auto& Subject : StreamedSubjects)
+	for (auto& Subject : StreamedSubjects)
 	{
 		if (Subject->ShouldDisplayInUI() &&
 			Subject->GetDagPath() == DagPath)
 		{
 			Subject->OnAttributeChanged(Object, Plug, OtherPlug);
-			Subject->OnStream(StreamTime, FrameNumber);
+			::StreamOnIdle(Subject, MGlobal::kLowIdlePriority);
 			break;
 		}
 	}
 }
 
+//======================================================================
+//
+/*!	\brief	Update the animation curves for every subject in StreamedSubject list.
+
+*/
+void MayaLiveLinkStreamManager::OnTimeUnitChanged()
+{
+	for (const auto& Subject : StreamedSubjects)
+	{
+		if (Subject->ShouldDisplayInUI())
+		{
+			Subject->OnTimeUnitChanged();
+		}
+	}
+}
 //======================================================================
 //
 /*!	\brief	This function streams static data for Prop subject to UE.
@@ -793,7 +1126,6 @@ void MayaLiveLinkStreamManager::OnStreamPropSubject(const MString& SubjectName, 
 {
 	FUnrealStreamManager::TheOne().OnStreamPropSubject(SubjectName.asChar(), StreamMode.asChar());
 }
-
 
 //======================================================================
 //
@@ -821,7 +1153,6 @@ void MayaLiveLinkStreamManager::OnStreamLightSubject(const MString& SubjectName,
 	FUnrealStreamManager::TheOne().OnStreamLightSubject(SubjectName.asChar(), StreamMode.asChar());
 }
 
-
 //======================================================================
 //
 /*!	\brief	This function streams static data for Base Camera subject to UE.
@@ -847,7 +1178,6 @@ void MayaLiveLinkStreamManager::StreamCamera(const MString& SubjectName, const M
 {
 	FUnrealStreamManager::TheOne().StreamCamera(SubjectName.asChar(), StreamMode.asChar());
 }
-
 
 //======================================================================
 //
@@ -882,12 +1212,56 @@ bool MayaLiveLinkStreamManager::RebuildJointHierarchySubject(const MString& Subj
 //
 /*!	\brief	This function streams frame data for Joint Hierarchy subject to UE.
 
-	\param[in] SubjectName   Name of the light joint hierarchy to be streamed.
+	\param[in] SubjectName   Name of the joint hierarchy to be streamed.
 	\param[in] StreamMode    Stream mode for the joint hierarchy subject.
 */
 void MayaLiveLinkStreamManager::OnStreamJointHierarchySubject(const MString& SubjectName, const MString& StreamMode)
 {
 	return FUnrealStreamManager::TheOne().OnStreamJointHierarchySubject(SubjectName.asChar(), StreamMode.asChar());
+}
+
+//======================================================================
+//
+/*!	\brief	This function streams static data for an Anim Sequence subject to UE.
+
+\param[in] SubjectName Name of the subject to be streamed.
+*/
+void MayaLiveLinkStreamManager::RebuildAnimSequenceSubject(const MString& SubjectName)
+{
+	FUnrealStreamManager::TheOne().RebuildAnimSequence(SubjectName.asChar());
+}
+
+//======================================================================
+//
+/*!	\brief	This function streams frame data for an Anim Sequence subject to UE.
+
+\param[in] SubjectName   Name of the subject to be streamed.
+*/
+void MayaLiveLinkStreamManager::OnStreamAnimSequenceSubject(const MString& SubjectName)
+{
+	FUnrealStreamManager::TheOne().OnStreamAnimSequence(SubjectName.asChar());
+}
+
+//======================================================================
+//
+/*!	\brief	This function streams static data for a Level Sequence subject to UE.
+
+\param[in] SubjectName Name of the subject to be streamed.
+*/
+void MayaLiveLinkStreamManager::RebuildLevelSequenceSubject(const MString& SubjectName)
+{
+	FUnrealStreamManager::TheOne().RebuildLevelSequence(SubjectName.asChar());
+}
+
+//======================================================================
+//
+/*!	\brief	This function streams frame data for an Level c Sequence subject to UE.
+
+\param[in] SubjectName   Name of the subject hierarchy to be streamed.
+*/
+void MayaLiveLinkStreamManager::OnStreamLevelSequenceSubject(const MString& SubjectName)
+{
+	FUnrealStreamManager::TheOne().OnStreamLevelSequence(SubjectName.asChar());
 }
 
 //======================================================================
@@ -899,7 +1273,7 @@ MDagPath MayaLiveLinkStreamManager::GetActiveCameraSubjectPath() const
 	MDagPath DagPath;
 	for (auto& Subject : StreamedSubjects)
 	{
-		if (!Subject->ShouldDisplayInUI() && Subject->GetSubjectTypeDisplayText() == "Camera")
+		if (!Subject->ShouldDisplayInUI() && Subject->GetRole() == MStreamedEntity::Camera)
 		{
 			return Subject->GetDagPath();
 		}
@@ -917,7 +1291,7 @@ void MayaLiveLinkStreamManager::SetActiveCameraDagPath(const MDagPath& DagPath)
 {
 	for (auto& Subject : StreamedSubjects)
 	{
-		if (!Subject->ShouldDisplayInUI() && Subject->GetSubjectTypeDisplayText() == "Camera")
+		if (!Subject->ShouldDisplayInUI() && Subject->GetRole() == MStreamedEntity::Camera)
 		{
 			static_cast<MLiveLinkActiveCamera*>(Subject.get())->CurrentActiveCameraDag = DagPath;
 			break;

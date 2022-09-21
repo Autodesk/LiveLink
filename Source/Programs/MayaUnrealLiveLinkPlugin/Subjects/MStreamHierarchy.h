@@ -22,7 +22,9 @@
 
 #pragma once
 
-#include "../MayaCommonIncludes.h"
+THIRD_PARTY_INCLUDES_START
+#include <maya/MFnIkJoint.h>
+THIRD_PARTY_INCLUDES_END
 
 class MStreamHierarchy
 {

@@ -26,12 +26,12 @@
 if "%~2" == "" (
     @echo Missing Maya OS
     @echo Building for Win64
-    SET PLATFORM=Win64
+    SET MAYA_PLATFORM=Win64
 ) else (
-    SET PLATFORM=%2
+    SET MAYA_PLATFORM=%2
 )
 
 if exist "%~dp0Staging\" (
   RMDIR "%~dp0Staging" /S /Q
 )
-"%~dp0..\..\..\..\..\Build\BatchFiles\RunUAT.bat"  BuildGraph -Script="%~dp0BuildMayaUnrealLiveLinkPlugin.xml" -Target="Stage Maya Plugin Module" -set:MayaVersion=%1 -set:MayaPlatform=%PLATFORM% -NoXGE
+"%~dp0..\..\..\..\..\Build\BatchFiles\RunUAT.bat" BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=%1 -set:MayaPlatform=%MAYA_PLATFORM% -NoXGE

@@ -22,6 +22,7 @@
 
 import weakref
 from UnrealLiveLinkWindow import UnrealLiveLinkWindow
+from ImageUtils import ImageUtils
 
 class UnrealLiveLinkController():
     def __init__(self, model, windowName, windowTitle, iconPath, parentWidget=None, window=None):
@@ -36,11 +37,11 @@ class UnrealLiveLinkController():
 
         self._Model = weakref.proxy(model)
         if model and parentWidget is None:
-            tlc, width, height = model.loadUISettings()
+            tlc, width, height = model.loadUISettings(windowName)
             if width > 0 and height > 0:
                 self._Window.setWindowRect(tlc, width, height)
 
-        self._Window.setIconPath(iconPath)
+        ImageUtils.setIconPath(iconPath)
         self._Window.initUI()
 
     def __del__(self):
@@ -49,10 +50,19 @@ class UnrealLiveLinkController():
             del self._Window
             self._Window = None
 
-    def loadUISettings(self):
+    def loadUISettings(self, windowName):
         if self._Model:
-            return self._Model.loadUISettings()
+            return self._Model.loadUISettings(windowName)
         return [50, 50], 650, 450
+
+    def getUIGeometry(self, windowName):
+        if self._Model:
+            return self._Model.getUIGeometry(windowName)
+        return 0, 0, 650, 450
+
+    def saveUIGeometry(self, windowName, x, y, width, height):
+        if self._Model:
+            self._Model.saveUIGeometry(windowName, x, y, width, height)
 
     def setWindowRect(self, tlc, w, h):
         if self._Window:
@@ -88,9 +98,9 @@ class UnrealLiveLinkController():
         if self._Model:
             self._Model.changeSubjectName(dagPath, newName)
 
-    def changeSubjectRole(self, dagPath, newRole):
+    def changeSubjectType(self, dagPath, newType):
         if self._Model:
-            self._Model.changeSubjectRole(dagPath, newRole)
+            self._Model.changeSubjectType(dagPath, newType)
 
     def getNetworkEndpoints(self):
         if self._Model:
@@ -105,9 +115,9 @@ class UnrealLiveLinkController():
         if self._Window:
             self._Window.setWindowProperty(name, value)
 
-    def getDpiScale(self, size):
+    def getDpiScale(self, size, useConversion=True):
         if self._Model:
-            return self._Model.getDpiScale(size)
+            return self._Model.getDpiScale(size, useConversion)
         return size
 
     def isDocked(self):
@@ -162,3 +172,64 @@ class UnrealLiveLinkController():
     def getLoadedUnrealVersion(self):
         if self._Model:
             return self._Model.getLoadedUnrealVersion()
+
+    def getNodeType(self, dagPath, isJoint, isJointRootOnly):
+        if self._Model:
+            return self._Model.getNodeType(dagPath, isJoint, isJointRootOnly)
+
+    def getLinkedAssets(self, nodeType, levelAssets):
+        if self._Model:
+            return self._Model.getLinkedAssets(nodeType, levelAssets)
+        return [], dict()
+
+    def getTargetAssets(self, assetClass):
+        if self._Model:
+            return self._Model.getTargetAssets(assetClass)
+        return dict()
+
+    def getAssetsFromParentClass(self, className, parentClass):
+        if self._Model:
+            return self._Model.getAssetsFromParentClass(className, parentClass)
+        return None, None
+
+    def getAnimSequencesBySkeleton(self):
+        if self._Model:
+            return self._Model.getAnimSequencesBySkeleton()
+        return None
+
+    def linkAsset(self, subjectPath, linkedAssetPath, linkedAssetClass, targetAssetPath, targetAssetName, linkedAssetNativeClass):
+        if self._Model:
+            self._Model.linkAsset(subjectPath, linkedAssetPath, linkedAssetClass, targetAssetPath, targetAssetName, linkedAssetNativeClass)
+
+    def unlinkAsset(self, subjectPath):
+        if self._Model:
+            self._Model.unlinkAsset(subjectPath)
+
+    def setLinkProgress(self, value, visible):
+        if self._Window:
+            self._Window.setLinkProgress(value, visible)
+
+    def updateUILinkInfo(self, dagPath, linkedAssetPath, targetAssetPath, targetAssetName, linkedAssetClass, linkedAssetUnrealNativeClass):
+        if self._Window:
+            self._Window.updateLinkInfo(dagPath, linkedAssetPath, targetAssetPath, targetAssetName, linkedAssetClass, linkedAssetUnrealNativeClass)
+
+    def isPlayheadSyncEnabled(self):
+        if self._Model:
+            return self._Model.isPlayheadSyncEnabled()
+        return False
+
+    def enablePlayheadSync(self, state):
+        if self._Model:
+            self._Model.enablePlayheadSync(state)
+
+    def pauseAnimSeqSync(self, state):
+        if self._Model:
+            self._Model.pauseAnimSeqSync(state)
+
+    def selectedObject(self, hasSelection):
+        if self._Window:
+            self._Window.selectedObject(hasSelection)
+
+    def enableControls(self, enable):
+        if self._Window:
+            self._Window.enableControls(enable)

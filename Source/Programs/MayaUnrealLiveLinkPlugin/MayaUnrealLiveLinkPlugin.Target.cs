@@ -23,11 +23,7 @@
 using UnrealBuildTool;
 using System;
 using System.IO;
-#if !UE_5_0_OR_LATER
-using Tools.DotNETCommon;
-#else
 using EpicGames.Core;
-#endif
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -82,18 +78,15 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 	private void Init(TargetInfo Target, string InMayaVersionString)
 	{
 		Type = TargetType.Program;
-
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 		bShouldCompileAsDLL = true;
 		LinkType = TargetLinkType.Monolithic;
 		SolutionDirectory = "Programs/LiveLink";
 		string MllName = "MayaUnrealLiveLinkPlugin";
 		LaunchModuleName = MllName + InMayaVersionString;
 
-		#if UE_5_0_OR_LATER
-			string UEVersion = "5_0";
-		#else
-			string UEVersion = "4_27";
-		#endif // UE_5_0_OR_LATER
+		ReadOnlyBuildVersion Version = ReadOnlyBuildVersion.Current;
+		string UEVersion = Version.MajorVersion.ToString()+"_"+Version.MinorVersion.ToString();
 		Name             = MllName + "_" + UEVersion;
 
 		// We only need minimal use of the engine for this plugin
@@ -102,6 +95,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		bBuildWithEditorOnlyData = true;
 		bCompileAgainstEngine = false;
 		bCompileAgainstCoreUObject = true;
+		bCompileAgainstApplicationCore = false;
 		bCompileICU = false;
 		bHasExports = true;
 		
@@ -157,6 +151,12 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 			MllName = "lib" + MllName;
 		}
 
+		// Fix Script with right version of UE
+		DirectoryInfo SourcePath = Directory.GetParent(TargetFilePath);
+		string text = File.ReadAllText(SourcePath.ToString()+"/MayaUnrealLiveLinkPluginUI.py.in");
+		text = text.Replace("@UNREAL5_ENGINE_VERSION@", UEVersion);
+		File.WriteAllText(SourcePath.ToString()+"/MayaUnrealLiveLinkPluginUI.py", text);
+
 		// Copy binaries
 		PostBuildSteps.Add(string.Format("echo Copying {0} to {1}...", EngineBinariesDir, PostBuildBinDir));
 
@@ -166,17 +166,26 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		}
 		else
 		{
-			PostBuildSteps.Add(string.Format("mkdir -p \"{2}\" && cp \"{0}\"/\"{1}\".* \"{2}\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir));
+			PostBuildSteps.Add(string.Format("mkdir -p \"{2}\" && rm -f {2}/{1}* && cp \"{0}\"/\"{1}\".* \"{2}\" 1>nul", EngineBinariesDir, OutputName, PostBuildBinDir));
 		}
 
+		string SourceFileName = Path.Combine(PostBuildBinDir, OutputName);
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			// Rename dll as mll
 			string OutputFileName = Path.Combine(PostBuildBinDir, MllName + "_" + UEVersion);
-			string SourceFileName = Path.Combine(PostBuildBinDir, OutputName);
 
 			PostBuildSteps.Add(string.Format("echo Renaming {0}.dll to {1}.mll...", SourceFileName, OutputFileName));
 			PostBuildSteps.Add(string.Format("move /Y \"{0}.dll\" \"{1}.mll\" 1>nul", SourceFileName, OutputFileName));
+		} else if (Target.Configuration != UnrealTargetConfiguration.Development)
+		{
+			// For Linux debug builds, create symbolic link when library name is different
+			string OutputFileName = Path.Combine(PostBuildBinDir, "lib" + Name);
+
+			PostBuildSteps.Add(string.Format("echo \"Creating symbolic links {1}.* to {0}.*...\"", SourceFileName, OutputFileName));
+			PostBuildSteps.Add(string.Format("ln -sf \"{0}.{2}\" \"{1}.{2}\" 1>nul", SourceFileName, OutputFileName,"so"));
+			PostBuildSteps.Add(string.Format("ln -sf \"{0}.{2}\" \"{1}.{2}\" 1>nul", SourceFileName, OutputFileName,"debug"));
+			PostBuildSteps.Add(string.Format("ln -sf \"{0}.{2}\" \"{1}.{2}\" 1>nul", SourceFileName, OutputFileName,"sym"));
 		}
 	}
 }

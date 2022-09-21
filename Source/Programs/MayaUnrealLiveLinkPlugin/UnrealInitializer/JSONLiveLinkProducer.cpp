@@ -27,10 +27,12 @@
 
 #include "Roles/LiveLinkAnimationRole.h"
 #include "Roles/LiveLinkAnimationTypes.h"
+#include "Roles/MayaLiveLinkAnimSequenceRole.h"
 #include "Roles/LiveLinkCameraRole.h"
 #include "Roles/LiveLinkCameraTypes.h"
 #include "Roles/LiveLinkLightRole.h"
 #include "Roles/LiveLinkLightTypes.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Roles/LiveLinkTransformTypes.h"
 
@@ -224,6 +226,10 @@ bool FJSONLiveLinkProducer::UpdateSubjectStaticData(const FName& SubjectName, TS
 	{
 		UpdateSubjectStaticData(SubjectName, *StaticData.Cast<FLiveLinkTransformStaticData>());
 	}
+	else if (RoleClass == UMayaLiveLinkAnimSequenceRole::StaticClass())
+	{
+		UpdateSubjectStaticData(SubjectName, *StaticData.Cast<FMayaLiveLinkAnimSequenceStaticData>());
+	}
 	else
 	{
 		SupportedRole = false;
@@ -290,6 +296,10 @@ bool FJSONLiveLinkProducer::UpdateSubjectFrameData(const FName& SubjectName, TSu
 	{
 		UpdateSubjectFrameData(SubjectName, *FrameData.Cast<FLiveLinkTransformFrameData>());
 	}
+	else if (RoleClass == UMayaLiveLinkAnimSequenceRole::StaticClass())
+	{
+		UpdateSubjectFrameData(SubjectName, *FrameData.Cast<FMayaLiveLinkAnimSequenceFrameData>());
+	}
 	else
 	{
 		SupportedRole = false;
@@ -304,7 +314,7 @@ bool FJSONLiveLinkProducer::HasConnection() const
 }
 
 /** Function for managing connection status changed delegate. */
-FDelegateHandle FJSONLiveLinkProducer::RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) 
+FDelegateHandle FJSONLiveLinkProducer::RegisterConnStatusChangedHandle(const FMayaLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) 
 {
 	return OnConnectionStatusChanged.Add(ConnStatusChanged);
 }
@@ -607,6 +617,105 @@ void FJSONLiveLinkProducer::UpdateSubjectFrameData(const FName& SubjectName,
 	Writer.EndObject();
 
 	EndWriterFrameData();
+
+	SendStringBuffer();
+}
+
+void FJSONLiveLinkProducer::UpdateSubjectStaticData(const FName& SubjectName,
+													FMayaLiveLinkAnimSequenceStaticData& StaticData)
+{
+	const auto NumBones = StaticData.BoneNames.Num();
+	if (NumBones > 0 &&
+		NumBones == StaticData.BoneParents.Num())
+	{
+		ResetWriter();
+
+		StartWriterStaticData(SubjectName, "Timeline");
+
+		Writer.StartObject();
+		Writer.Key("Params");
+		{
+			Writer.StartObject();
+			{
+				WriteKey("AnimSequenceName", true, StaticData.SequenceName);
+				WriteKey("AnimSequencePath", true, StaticData.SequencePath);
+				WriteKey("SkeletonPath", true, StaticData.LinkedAssetPath);
+				WriteKey("FrameRate", true, StaticData.FrameRate.AsDecimal());
+				WriteKey("StartFrame", true, StaticData.StartFrame);
+				WriteKey("EndFrame", true, StaticData.EndFrame);
+			}
+			Writer.EndObject();
+		}
+		Writer.EndObject();
+
+		Writer.StartObject();
+		Writer.Key("BoneHierarchy");
+		{
+			Writer.StartArray();
+			for (int i = 0; i < NumBones; ++i)
+			{
+				Writer.StartObject();
+				{
+					WriteKey("Name", true, StaticData.BoneNames[i].ToString());
+					WriteKey("Parent", true, StaticData.BoneParents[i]);
+				}
+				Writer.EndObject();
+			}
+			Writer.EndArray();
+		}
+		Writer.EndObject();
+
+		EndWriterStaticData();
+
+		SendStringBuffer();
+	}
+}
+
+void FJSONLiveLinkProducer::UpdateSubjectFrameData(const FName& SubjectName,
+												   const FMayaLiveLinkAnimSequenceFrameData& FrameData)
+{
+	auto StaticDataPtr = GetLastSubjectStaticData<FMayaLiveLinkAnimSequenceStaticData>(SubjectName);
+	if (StaticDataPtr == nullptr)
+	{
+		return;
+	}
+	auto& StaticData = *StaticDataPtr;
+
+	ResetWriter();
+
+	int32 FrameIndex = FrameData.StartFrame;
+	for (int32 Index = 0; Index < FrameData.Frames.Num(); ++Index, ++FrameIndex)
+	{
+		// Frame number
+		if (FrameIndex >= 0)
+		{
+			auto& Frame = FrameData.Frames[Index];
+			auto NumBones = Frame.Locations.Num();
+			if (NumBones > 0)
+			{
+				StartWriterFrameData(SubjectName, "Timeline", FrameIndex);
+
+				// Bones
+				Writer.StartObject();
+				Writer.Key("BoneTransforms");
+				{
+					Writer.StartArray();
+					for (int i = 0; i < NumBones; ++i)
+					{
+						Writer.StartObject();
+						WriteLocation(Frame.Locations[i]);
+						WriteRotation(Frame.Rotations[i]);
+						WriteScale(Frame.Scales[i]);
+						Writer.EndObject();
+					}
+					Writer.EndArray();
+				}
+				Writer.EndObject();
+
+				EndWriterFrameData();
+			}
+		}
+	}
 
 	SendStringBuffer();
 }

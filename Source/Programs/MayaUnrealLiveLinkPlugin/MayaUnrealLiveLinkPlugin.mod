@@ -31,7 +31,3 @@ scripts: .
 + MAYAVERSION:2020 LiveLink 2.0 ./2020
 plug-ins: .
 scripts: .
-
-+ MAYAVERSION:2019 LiveLink 2.0 ./2019
-plug-ins: .
-scripts: .

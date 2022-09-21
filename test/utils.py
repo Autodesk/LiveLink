@@ -22,7 +22,7 @@
 
 import json
 import math
-import os
+import os, re
 import platform
 
 import maya.standalone
@@ -63,9 +63,22 @@ def loadPlugin(name):
         cmds.loadPlugin(name)
 
 def getUEVersionSuffix():
-    UEVersionSuffix = os.environ.get('UNITTEST_UNREAL_VERSION')
-    assert UEVersionSuffix,"UNITTEST_UNREAL_VERSION not specified"
-    return UEVersionSuffix
+    # Detect Engine version
+    testPath =  os.path.abspath(os.path.dirname(__file__))
+    UE_ENGINE_DIR = os.path.join(testPath,'..','..','..')
+    UE_VERSION_FILE = os.path.join(UE_ENGINE_DIR,'Source','Runtime','Launch','Resources','Version.h')
+
+    UEVersion=""
+    try:
+        with open(UE_VERSION_FILE, 'r') as f:
+            filetext = f.read()
+            major = re.findall("#define ENGINE_MAJOR_VERSION.*([0-9]+)", filetext) 
+            minor = re.findall("#define ENGINE_MINOR_VERSION.*([0-9]+)", filetext) 
+            UEVersion = major[0]+"_"+minor[0]
+    except IOError as e:
+        print("Error opening file: "+UE_VERSION_FILE)
+    assert UEVersion,"Unable to determine the Engine version"
+    return UEVersion
     
 def loadPlugins():
     version_suffix = getUEVersionSuffix()

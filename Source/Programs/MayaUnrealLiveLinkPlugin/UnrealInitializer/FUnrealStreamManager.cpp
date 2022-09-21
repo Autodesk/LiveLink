@@ -21,7 +21,12 @@
 // SOFTWARE.
 
 #include "FUnrealStreamManager.h"
-#include "Misc/OutputDevice.h"
+
+#include "FMessageBusLiveLinkProducer.h"
+#include "JSONLiveLinkProducer.h"
+
+#include "Interfaces/IPv4/IPv4Endpoint.h"
+
 #include "Roles/LiveLinkAnimationRole.h"
 #include "Roles/LiveLinkAnimationTypes.h"
 #include "Roles/LiveLinkCameraRole.h"
@@ -30,20 +35,20 @@
 #include "Roles/LiveLinkLightTypes.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Roles/LiveLinkTransformTypes.h"
-#include "LiveLinkProvider.h"
-#include "LiveLinkRefSkeleton.h"
-#include "LiveLinkTypes.h"
+#include "Roles/MayaLiveLinkAnimSequenceRole.h"
+#include "Roles/MayaLiveLinkLevelSequenceRole.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
 //======================================================================
 /*!	\brief	Initialize and return the mutable reference to working static data that will be sent to UE.
 
-	This function creates a static struct from type T and assigns it to WorkingStaticData.
-	This function is called by MayaLiveLinkStreamManager to provide access to WorkingStaticData for
-	subjects to fill with relevant static data that needs to sent to UE.
+This function creates a static struct from type T and assigns it to WorkingStaticData.
+This function is called by MayaLiveLinkStreamManager to provide access to WorkingStaticData for
+subjects to fill with relevant static data that needs to sent to UE.
 
-	T must be static data for LiveLink subjects.
+T must be static data for LiveLink subjects.
 
-	\return	T Reference to Subject specific static data in WorkingStaticData.
+\return	T Reference to Subject specific static data in WorkingStaticData.
 */
 template<typename T>
 T& FUnrealStreamManager::InitializeAndGetStaticData()
@@ -61,18 +66,20 @@ template FLiveLinkLightStaticData&     FUnrealStreamManager::InitializeAndGetSta
 template FLiveLinkCameraStaticData&    FUnrealStreamManager::InitializeAndGetStaticData();
 template FLiveLinkSkeletonStaticData&  FUnrealStreamManager::InitializeAndGetStaticData();
 template FLiveLinkTransformStaticData& FUnrealStreamManager::InitializeAndGetStaticData();
+template FMayaLiveLinkAnimSequenceStaticData& FUnrealStreamManager::InitializeAndGetStaticData();
+template FMayaLiveLinkLevelSequenceStaticData& FUnrealStreamManager::InitializeAndGetStaticData();
 
 
 //======================================================================
 /*!	\brief	Initialize and return the mutable reference to working static data that will be sent to UE.
 
-	This function creates a frame data struct from type T and assigns it to WorkingFrameData.
-	This function is called by MayaLiveLinkStreamManager to provide access to WorkingFrameData for
-	subjects to fill with relevant frame data that needs to sent to UE.
+This function creates a frame data struct from type T and assigns it to WorkingFrameData.
+This function is called by MayaLiveLinkStreamManager to provide access to WorkingFrameData for
+subjects to fill with relevant frame data that needs to sent to UE.
 
-	T must be frame data for LiveLink subjects.
+T must be frame data for LiveLink subjects.
 
-	\return	T Reference to Subject specific frame data in WorkingFrameData.
+\return	T Reference to Subject specific frame data in WorkingFrameData.
 */
 template<typename T>
 T& FUnrealStreamManager::InitializeAndGetFrameData()
@@ -90,6 +97,8 @@ template FLiveLinkLightFrameData&     FUnrealStreamManager::InitializeAndGetFram
 template FLiveLinkCameraFrameData&    FUnrealStreamManager::InitializeAndGetFrameData();
 template FLiveLinkAnimationFrameData& FUnrealStreamManager::InitializeAndGetFrameData();
 template FLiveLinkTransformFrameData& FUnrealStreamManager::InitializeAndGetFrameData();
+template FMayaLiveLinkAnimSequenceFrameData& FUnrealStreamManager::InitializeAndGetFrameData();
+template FMayaLiveLinkLevelSequenceFrameData& FUnrealStreamManager::InitializeAndGetFrameData();
 
 //======================================================================
 //
@@ -119,7 +128,7 @@ FUnrealStreamManager& FUnrealStreamManager::TheOne()
 //======================================================================
 /*!	\brief	Get the current live link provider.
 
-	\return	LiveLinkProvider shared pointer that is currently active.
+\return	LiveLinkProvider shared pointer that is currently active.
 */
 TSharedPtr<ILiveLinkProducer> FUnrealStreamManager::GetLiveLinkProvider()
 {
@@ -129,9 +138,9 @@ TSharedPtr<ILiveLinkProducer> FUnrealStreamManager::GetLiveLinkProvider()
 //======================================================================
 /*!	\brief	Set the current live link provider.
 
-	\param[in] Producer Live link source that we want to set as new producer.
+\param[in] Producer Live link source that we want to set as new producer.
 
-	\return	True when live link provider was set successfully.
+\return	True when live link provider was set successfully.
 */
 bool	FUnrealStreamManager::SetLiveLinkProvider(LiveLinkSource Producer)
 {
@@ -159,10 +168,10 @@ bool	FUnrealStreamManager::SetLiveLinkProvider(LiveLinkSource Producer)
 //======================================================================
 /*!	\brief	Update the "Prop Subject" static data.
 
-	\param[in] SubjectName Name of the subject to be updated.
-	\param[in] StreamMode  Stream mode for the subject.
+\param[in] SubjectName Name of the subject to be updated.
+\param[in] StreamMode  Stream mode for the subject.
 
-	\return	True when subject's data was updated successfully.
+\return	True when subject's data was updated successfully.
 */
 bool FUnrealStreamManager::RebuildPropSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
@@ -190,14 +199,15 @@ bool FUnrealStreamManager::RebuildPropSubjectData(const FName& SubjectName, cons
 		LiveLinkProvider->UpdateSubjectStaticData(SubjectName, ULiveLinkAnimationRole::StaticClass(), MoveTemp(WorkingStaticData));
 		ValidSubject = true;
 	}
+
 	return ValidSubject;
 }
 
 //======================================================================
 /*!	\brief	Update the "Prop Subject" frame(Stream or animated i.e. data that changes per frame) data.
 
-	\param[in] SubjectName  Name of the subject to be updated.
-	\param[in] StreamMode   Stream mode for the subject.
+\param[in] SubjectName  Name of the subject to be updated.
+\param[in] StreamMode   Stream mode for the subject.
 */
 void FUnrealStreamManager::OnStreamPropSubject(const FName& SubjectName, const FString& StreamMode)
 {
@@ -216,14 +226,13 @@ void FUnrealStreamManager::OnStreamPropSubject(const FName& SubjectName, const F
 	}
 }
 
-
 //======================================================================
 /*!	\brief	Update the "Light Subject" static data.
 
-	\param[in] SubjectName Name of the subject to be updated.
-	\param[in] StreamMode  Stream mode for the subject.
+\param[in] SubjectName Name of the subject to be updated.
+\param[in] StreamMode  Stream mode for the subject.
 
-	\return	True when subject's data was updated successfully.
+\return	True when subject's data was updated successfully.
 */
 bool FUnrealStreamManager::RebuildLightSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
@@ -261,8 +270,8 @@ bool FUnrealStreamManager::RebuildLightSubjectData(const FName& SubjectName, con
 //======================================================================
 /*!	\brief	Update the "Light Subject" frame(Stream or animated i.e. data that changes per frame) data.
 
-	\param[in] SubjectName  Name of the subject to be updated.
-	\param[in] StreamMode   Stream mode for the subject.
+\param[in] SubjectName  Name of the subject to be updated.
+\param[in] StreamMode   Stream mode for the subject.
 */
 void FUnrealStreamManager::OnStreamLightSubject(const FName& SubjectName, const FString& StreamMode)
 {
@@ -288,10 +297,10 @@ void FUnrealStreamManager::OnStreamLightSubject(const FName& SubjectName, const 
 //======================================================================
 /*!	\brief	Update the "Base Camera Subject" static data.
 
-	\param[in] SubjectName Name of the subject to be updated.
-	\param[in] StreamMode  Stream mode for the subject.
+\param[in] SubjectName Name of the subject to be updated.
+\param[in] StreamMode  Stream mode for the subject.
 
-	\return	True when subject's data was updated successfully.
+\return	True when subject's data was updated successfully.
 */
 bool FUnrealStreamManager::RebuildBaseCameraSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
@@ -317,12 +326,6 @@ bool FUnrealStreamManager::RebuildBaseCameraSubjectData(const FName& SubjectName
 	}
 	else if (StreamMode == "Camera")
 	{
-		auto& CameraData = *WorkingStaticData.Cast<FLiveLinkCameraStaticData>();
-		CameraData.bIsAspectRatioSupported = true;
-		CameraData.bIsFieldOfViewSupported = true;
-		CameraData.bIsFocalLengthSupported = true;
-		CameraData.bIsProjectionModeSupported = true;
-
 		LiveLinkProvider->UpdateSubjectStaticData(SubjectName, ULiveLinkCameraRole::StaticClass(), MoveTemp(WorkingStaticData));
 		ValidSubject = true;
 	}
@@ -332,8 +335,8 @@ bool FUnrealStreamManager::RebuildBaseCameraSubjectData(const FName& SubjectName
 //======================================================================
 /*!	\brief	Update the "Camera Subject" frame(Stream or animated i.e. data that changes per frame) data.
 
-	\param[in] SubjectName     Name of the subject to be updated.
-	\param[in] StreamMode      Stream mode for the subject.
+\param[in] SubjectName     Name of the subject to be updated.
+\param[in] StreamMode      Stream mode for the subject.
 */
 void FUnrealStreamManager::StreamCamera(const FName& SubjectName, const FString& StreamMode)
 {
@@ -359,10 +362,10 @@ void FUnrealStreamManager::StreamCamera(const FName& SubjectName, const FString&
 //======================================================================
 /*!	\brief	Update the "Camera Subject" static data.
 
-	\param[in] SubjectName Name of the subject to be updated.
-	\param[in] StreamMode  Stream mode for the subject.
+\param[in] SubjectName Name of the subject to be updated.
+\param[in] StreamMode  Stream mode for the subject.
 
-	\return	True when subject's data was updated successfully.
+\return	True when subject's data was updated successfully.
 */
 bool FUnrealStreamManager::RebuildCameraSubjectData(const FName& SubjectName, const FString& StreamMode)
 {
@@ -373,11 +376,7 @@ bool FUnrealStreamManager::RebuildCameraSubjectData(const FName& SubjectName, co
 
 	auto& CameraData = *WorkingStaticData.Cast<FLiveLinkCameraStaticData>();
 	CameraData.bIsApertureSupported = true;
-	CameraData.bIsAspectRatioSupported = true;
-	CameraData.bIsFieldOfViewSupported = true;
-	CameraData.bIsFocalLengthSupported = true;
 	CameraData.bIsFocusDistanceSupported = true;
-	CameraData.bIsProjectionModeSupported = true;
 
 	LiveLinkProvider->UpdateSubjectStaticData(SubjectName, ULiveLinkCameraRole::StaticClass(), MoveTemp(WorkingStaticData));
 	return true;
@@ -387,10 +386,10 @@ bool FUnrealStreamManager::RebuildCameraSubjectData(const FName& SubjectName, co
 //======================================================================
 /*!	\brief	Update the "Joint Hierarchy Subject" static data.
 
-	\param[in] SubjectName  Name of the subject to be updated.
-	\param[in] StreamMode   Stream mode for the subject.
+\param[in] SubjectName  Name of the subject to be updated.
+\param[in] StreamMode   Stream mode for the subject.
 
-	\return	True when subject's data was updated successfully.
+\return	True when subject's data was updated successfully.
 */
 bool FUnrealStreamManager::RebuildJointHierarchySubjectData(const FName& SubjectName, const FString& StreamMode)
 {
@@ -421,8 +420,8 @@ bool FUnrealStreamManager::RebuildJointHierarchySubjectData(const FName& Subject
 //======================================================================
 /*!	\brief	Update the "Joint Hierarchy Subject" frame(Stream or animated i.e. data that changes per frame) data.
 
-	\param[in] SubjectName     Name of the subject to be updated.
-	\param[in] StreamMode      Stream mode for the subject.
+\param[in] SubjectName     Name of the subject to be updated.
+\param[in] StreamMode      Stream mode for the subject.
 */
 void FUnrealStreamManager::OnStreamJointHierarchySubject(const FName& SubjectName, const FString& StreamMode)
 {
@@ -439,4 +438,44 @@ void FUnrealStreamManager::OnStreamJointHierarchySubject(const FName& SubjectNam
 	{
 		LiveLinkProvider->UpdateSubjectFrameData(SubjectName, ULiveLinkAnimationRole::StaticClass(), MoveTemp(WorkingFrameData));
 	}
+}
+
+void FUnrealStreamManager::RebuildAnimSequence(const FName& SubjectName)
+{
+	if (!LiveLinkProvider->HasConnection())
+	{
+		return;
+	}
+
+	LiveLinkProvider->UpdateSubjectStaticData(SubjectName, UMayaLiveLinkAnimSequenceRole::StaticClass(), MoveTemp(WorkingStaticData));
+}
+
+void FUnrealStreamManager::OnStreamAnimSequence(const FName& SubjectName)
+{
+	if (!LiveLinkProvider->HasConnection())
+	{
+		return;
+	}
+
+	LiveLinkProvider->UpdateSubjectFrameData(SubjectName, UMayaLiveLinkAnimSequenceRole::StaticClass(), MoveTemp(WorkingFrameData));
+}
+
+void FUnrealStreamManager::RebuildLevelSequence(const FName& SubjectName)
+{
+	if (!LiveLinkProvider->HasConnection())
+	{
+		return;
+	}
+
+	LiveLinkProvider->UpdateSubjectStaticData(SubjectName, UMayaLiveLinkLevelSequenceRole::StaticClass(), MoveTemp(WorkingStaticData));
+}
+
+void FUnrealStreamManager::OnStreamLevelSequence(const FName& SubjectName)
+{
+	if (!LiveLinkProvider->HasConnection())
+	{
+		return;
+	}
+
+	LiveLinkProvider->UpdateSubjectFrameData(SubjectName, UMayaLiveLinkLevelSequenceRole::StaticClass(), MoveTemp(WorkingFrameData));
 }

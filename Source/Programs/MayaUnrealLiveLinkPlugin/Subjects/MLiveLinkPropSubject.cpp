@@ -22,18 +22,19 @@
 
 #include "MLiveLinkPropSubject.h"
 #include "../MayaLiveLinkStreamManager.h"
-#include "../MayaCommonIncludes.h"
 #include "MayaUnrealLiveLinkPlugin/MayaUnrealLiveLinkUtils.h"
+#include "LiveLinkTypes.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
 MLiveLinkPropSubject::MLiveLinkPropSubject(const MString& InSubjectName, const MDagPath& InRootPath, MPropStreamMode InStreamMode)
-: MStreamedEntity(InRootPath)
+: IMStreamedEntity(InRootPath)
 , SubjectName(InSubjectName)
-, RootDagPath(InRootPath)
 , StreamMode(InStreamMode >= 0 && InStreamMode < PropStreamOptions.length() ? InStreamMode : MPropStreamMode::RootOnly)
+, bLinked(false)
 {
 }
 
-MString PropStreams[2] = { "Root Only", "Full Hierarchy" };
+MString PropStreams[2] = { "Transform", "Animation" };
 MStringArray MLiveLinkPropSubject::PropStreamOptions(PropStreams, 2);
 
 MLiveLinkPropSubject::~MLiveLinkPropSubject()
@@ -46,7 +47,7 @@ bool MLiveLinkPropSubject::ShouldDisplayInUI() const
 	return true;
 }
 
-MDagPath MLiveLinkPropSubject::GetDagPath() const
+const MDagPath& MLiveLinkPropSubject::GetDagPath() const
 {
 	return RootDagPath;
 }
@@ -61,9 +62,10 @@ MString MLiveLinkPropSubject::GetRoleDisplayText() const
 	return PropStreamOptions[StreamMode];
 }
 
-MString MLiveLinkPropSubject::GetSubjectTypeDisplayText() const
+const MString& MLiveLinkPropSubject::GetSubjectTypeDisplayText() const
 {
-	return MString("Prop");
+	static const MString PropText("Prop");
+	return PropText;
 }
 
 bool MLiveLinkPropSubject::ValidateSubject() const
@@ -71,13 +73,19 @@ bool MLiveLinkPropSubject::ValidateSubject() const
 	return true;
 }
 
-bool MLiveLinkPropSubject::RebuildSubjectData()
+bool MLiveLinkPropSubject::RebuildSubjectData(bool ForceRelink)
 {
-	bool ValidSubject = false;
 	if (StreamMode == MPropStreamMode::RootOnly)
 	{
-		MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkTransformStaticData>();
-		return MayaLiveLinkStreamManager::TheOne().RebuildPropSubjectData(SubjectName, "RootOnly");
+		if (!IsLinked())
+		{
+			MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkTransformStaticData>();
+			return MayaLiveLinkStreamManager::TheOne().RebuildPropSubjectData(SubjectName, "RootOnly");
+		}
+		else
+		{
+			RebuildLevelSequenceSubject(SubjectName, GetDagPath(), SavedAssetName, SavedAssetPath, UnrealAssetClass, UnrealAssetPath, ForceRelink);
+		}
 	}
 	else if (StreamMode == MPropStreamMode::FullHierarchy)
 	{
@@ -101,7 +109,7 @@ bool MLiveLinkPropSubject::RebuildSubjectData()
 
 		return MayaLiveLinkStreamManager::TheOne().RebuildPropSubjectData(SubjectName, "FullHierarchy");
 	}
-	return ValidSubject;
+	return false;
 }
 
 void MLiveLinkPropSubject::OnStream(double StreamTime, double CurrentTime)
@@ -109,7 +117,9 @@ void MLiveLinkPropSubject::OnStream(double StreamTime, double CurrentTime)
 	MFnTransform TransformNode(RootDagPath);
 	double Scales[3] = { 1.0, 1.0, 1.0 };
 	TransformNode.getScale(Scales);
-	MMatrix MayaTransform = TransformNode.transformation().asMatrix();
+	MMatrix MayaTransform = MayaTransform.identity;
+	MObject TransformObject = RootDagPath.node();
+	MayaUnrealLiveLinkUtils::ComputeTransformHierarchy(TransformObject, MayaTransform);
 	MayaUnrealLiveLinkUtils::RotateCoordinateSystemForUnreal(MayaTransform);
 
 	auto UnrealTransform = MayaUnrealLiveLinkUtils::BuildUETransformFromMayaTransform(MayaTransform);
@@ -120,24 +130,36 @@ void MLiveLinkPropSubject::OnStream(double StreamTime, double CurrentTime)
 
 	const auto SceneTime = MayaUnrealLiveLinkUtils::GetMayaFrameTimeAsUnrealTime();
 
-
 	if (StreamMode == MPropStreamMode::RootOnly)
 	{
-		if (MGlobal::isYAxisUp())
+		if (!IsLinked())
 		{
-			UnrealTransform.SetScale3D(FVector(Scales[0], Scales[2], Scales[1]));
+			if (MGlobal::isYAxisUp())
+			{
+				UnrealTransform.SetScale3D(FVector(Scales[0], Scales[2], Scales[1]));
+			}
+			else
+			{
+				UnrealTransform.SetScale3D(FVector(Scales[0], Scales[1], Scales[2]));
+			}
+
+			auto& TransformData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkTransformFrameData>();
+			TransformData.Transform = UnrealTransform;
+			TransformData.WorldTime = StreamTime;
+			TransformData.MetaData.SceneTime = SceneTime;
+
+			MayaLiveLinkStreamManager::TheOne().OnStreamPropSubject(SubjectName, "RootOnly");
 		}
 		else
 		{
-			UnrealTransform.SetScale3D(FVector(Scales[0], Scales[1], Scales[2]));
+			if (AnimCurves.size() != 0)
+			{
+				auto& FrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FMayaLiveLinkLevelSequenceFrameData>();
+				InitializeFrameData(FrameData);
+				AnimCurves.clear();
+				MayaLiveLinkStreamManager::TheOne().OnStreamLevelSequenceSubject(SubjectName);
+			}
 		}
-
-		auto& TransformData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkTransformFrameData>();
-		TransformData.Transform = UnrealTransform;
-		TransformData.WorldTime = StreamTime;
-		TransformData.MetaData.SceneTime = SceneTime;
-
-		MayaLiveLinkStreamManager::TheOne().OnStreamPropSubject(SubjectName, "RootOnly");
 	}
 	else if (StreamMode == MPropStreamMode::FullHierarchy)
 	{
@@ -163,14 +185,79 @@ void MLiveLinkPropSubject::SetStreamType(const MString& StreamTypeIn)
 	{
 		if (PropStreamOptions[StreamTypeIdx] == StreamTypeIn && StreamMode != (MPropStreamMode)StreamTypeIdx)
 		{
-			StreamMode = (MPropStreamMode)StreamTypeIdx;
-			RebuildSubjectData();
+			SetStreamType(static_cast<MPropStreamMode>(StreamTypeIdx));
 			return;
 		}
 	}
 }
 
+void MLiveLinkPropSubject::SetStreamType(MPropStreamMode StreamModeIn)
+{
+	StreamMode = StreamModeIn;
+	if (StreamModeIn != MPropStreamMode::RootOnly)
+	{
+		UnrealAssetPath.clear();
+		SavedAssetPath.clear();
+		SavedAssetName.clear();
+	}
+	RebuildSubjectData();
+}
+
 int MLiveLinkPropSubject::GetStreamType() const
 {
 	return StreamMode;
+}
+
+void MLiveLinkPropSubject::LinkUnrealAsset(const LinkAssetInfo& LinkInfo)
+{
+	if (!bLinked ||
+		(bLinked &&
+		 (LinkInfo.UnrealAssetPath != UnrealAssetPath ||
+		  LinkInfo.UnrealAssetClass != UnrealAssetClass ||
+		  LinkInfo.SavedAssetPath != SavedAssetPath ||
+		  LinkInfo.SavedAssetName != SavedAssetName ||
+		  LinkInfo.UnrealNativeClass != UnrealNativeClass)))
+	{
+		UnrealAssetPath = LinkInfo.UnrealAssetPath;
+		UnrealAssetClass = LinkInfo.UnrealAssetClass;
+		SavedAssetPath = LinkInfo.SavedAssetPath;
+		SavedAssetName = LinkInfo.SavedAssetName;
+		UnrealNativeClass = LinkInfo.UnrealNativeClass;
+
+		if (!LinkInfo.bSetupOnly)
+		{
+			bLinked = true;
+
+			RebuildSubjectData();
+
+			// Wait a bit after rebuilding the subject data before sending the curve data to Unreal.
+			// Otherwise, Unreal will ignore it.
+			using namespace std::chrono_literals;
+			std::this_thread::sleep_for(100ms);
+
+			UpdateAnimCurves(RootDagPath);
+		}
+	}
+}
+
+void MLiveLinkPropSubject::UnlinkUnrealAsset()
+{
+	bLinked = false;
+	SetStreamType(StreamMode);
+	OnStreamCurrentTime();
+}
+
+bool MLiveLinkPropSubject::IsLinked() const
+{
+	return bLinked &&
+		   UnrealAssetPath.length() &&
+		   UnrealAssetClass.length() &&
+		   SavedAssetPath.length() &&
+		   SavedAssetName.length();
+}
+
+const MVector& MLiveLinkPropSubject::GetLevelSequenceRotationOffset() const
+{
+	static const MVector RotationOffset(0.0f, 0.0f, -90.0f);
+	return MGlobal::isYAxisUp() ? RotationOffset : MVector::zero;
 }

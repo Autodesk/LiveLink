@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "IMStreamedEntity.h"
-#include "MStreamedEntity.h"
 #include "MLiveLinkBaseCameraSubject.h"
 
 struct MLiveLinkActiveCamera : public MLiveLinkBaseCameraSubject
@@ -33,9 +31,12 @@ public:
 
 	MDagPath CurrentActiveCameraDag;
 
-	virtual MDagPath GetDagPath() const override;
+	virtual const MDagPath& GetDagPath() const override;
 
 	virtual void OnStream(double StreamTime, double CurrentTime) override;
+
+	virtual MString GetLinkedAsset() const override { return MString(""); }
+	virtual MString GetTargetAsset() const override { return MString(""); }
 
 private:
 	static MString ActiveCameraName;

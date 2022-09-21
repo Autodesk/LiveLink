@@ -22,14 +22,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Interfaces/IPv4/IPv4Endpoint.h"
-
 #include "ILiveLinkProducer.h"
-#include "FMessageBusLiveLinkProducer.h"
-#include "JSONLiveLinkProducer.h"
-#include "UnrealInitializer.h"
-#include "IUnrealStreamedEntity.h"
+#include "LiveLinkTypes.h"
 
 /*! \class	FUnrealStreamManager
 *		\brief  This class acts as stream manager to interact with UE.
@@ -43,7 +37,7 @@ private:
 
 	//! LiveLink source that is being used to stream from Maya to UE. Currently, it can
 	//! be either our JSON provider or built in MesssageBus.
-	TSharedPtr<ILiveLinkProducer> LiveLinkProvider;
+	TSharedPtr<class ILiveLinkProducer> LiveLinkProvider;
 
 	//! Member working data structs that can be used by the RebuildSubjectData or
 	//! OnStreamSubject function to send the data to LiveLink providers. We give access
@@ -57,7 +51,7 @@ public:
 	//! Singleton object. Use this function to access it.
 	static FUnrealStreamManager& TheOne();
 
-	TSharedPtr<ILiveLinkProducer> GetLiveLinkProvider();
+	TSharedPtr<class ILiveLinkProducer> GetLiveLinkProvider();
 	bool SetLiveLinkProvider(LiveLinkSource Producer);
 
 private:
@@ -94,4 +88,10 @@ public:
 	//! LiveLink functions for Joint Hierarchy Subject
 	bool RebuildJointHierarchySubjectData(const FName& SubjectName, const FString& StreamMode);
 	void OnStreamJointHierarchySubject(const FName& SubjectName, const FString& StreamMode);
+
+	void RebuildAnimSequence(const FName& SubjectName);
+	void OnStreamAnimSequence(const FName& SubjectName);
+
+	void RebuildLevelSequence(const FName& SubjectName);
+	void OnStreamLevelSequence(const FName& SubjectName);
 };

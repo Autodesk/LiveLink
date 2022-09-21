@@ -22,11 +22,10 @@
 
 #pragma once
 
-// Boilerplate for importing OpenMaya
-#if defined PLATFORM_WINDOWS
-#include "Windows/WindowsPlatformCompilerPreSetup.h"
-#else
-#include "Unix/UnixPlatformCompilerPreSetup.h"
+#include "MStreamedEntity.h"
+
+#ifdef STAT
+#undef STAT
 #endif
 
 // Import OpenMaya headers
@@ -45,22 +44,39 @@ THIRD_PARTY_INCLUDES_END
 	itself. Stream manger keeps track of subjects being streamed as pointers to
 	this type.
 */
-class IMStreamedEntity
+class IMStreamedEntity : public MStreamedEntity
 {
 public:
+	struct LinkAssetInfo
+	{
+		bool bSetupOnly = false;
+		MString UnrealAssetPath;
+		MString UnrealAssetClass;
+		MString SavedAssetPath;
+		MString SavedAssetName;
+		MString UnrealNativeClass; // Base C++ class when UnrealAssetClass is a blueprint
+	};
+
+	explicit IMStreamedEntity(const MDagPath& DagPath) : MStreamedEntity(DagPath) {}
 	virtual ~IMStreamedEntity() {}
 
 	// Should the subject be displayed in UI
 	virtual bool ShouldDisplayInUI() const { return false; }
 
-	virtual MDagPath GetDagPath() const = 0;
-	virtual MString  GetNameDisplayText() const = 0;
-	virtual MString  GetRoleDisplayText() const = 0;
-	virtual MString  GetSubjectTypeDisplayText() const = 0;
+	virtual const MDagPath& GetDagPath() const = 0;
+	virtual MString GetNameDisplayText() const = 0;
+	virtual MString GetRoleDisplayText() const = 0;
+	virtual const MString& GetSubjectTypeDisplayText() const = 0;
+	virtual MString GetLinkedAsset() const { return MString(""); }
+	virtual MString GetTargetAsset() const { return MString(""); }
+	virtual MString GetClass() const { return MString(""); }
+	virtual MString GetUnrealNativeClass() const { return MString(""); }
 	virtual bool ValidateSubject() const = 0;
-	virtual bool RebuildSubjectData() = 0;
-	virtual void OnStream(double StreamTime, double CurrentTime) = 0;
+	virtual bool RebuildSubjectData(bool ForceRelink = false) = 0;
+	virtual void OnStream(double StreamTime, double CurrentTime) {}
 	virtual void SetStreamType(const MString& StreamType) = 0;
 	virtual int  GetStreamType() const = 0;
-	virtual void OnAttributeChanged(const MObject& , const MPlug& , const MPlug& ) {}
+	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) {}
+	virtual void UnlinkUnrealAsset() {}
+	virtual void OnTimeUnitChanged() {}
 };

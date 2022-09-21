@@ -27,15 +27,8 @@
 class FMessageBusLiveLinkProducer : public ILiveLinkProducer
 {
 public:
-	FMessageBusLiveLinkProducer(const FString& ProviderName)
-	: LiveLinkProvider(ILiveLinkProvider::CreateLiveLinkProvider(ProviderName))
-	{
-	}
-
-	virtual ~FMessageBusLiveLinkProducer()
-	{
-		LiveLinkProvider.Reset();
-	}
+	FMessageBusLiveLinkProducer(const FString& ProviderName);
+	virtual ~FMessageBusLiveLinkProducer();
 
 	LiveLinkSource GetSourceType() const override final
 	{
@@ -87,7 +80,7 @@ public:
 	}
 
 	/** Function for managing connection status changed delegate. */
-	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) override
+	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FMayaLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) override
 	{
 		return LiveLinkProvider->RegisterConnStatusChangedHandle(ConnStatusChanged);
 	}
@@ -98,11 +91,79 @@ public:
 		LiveLinkProvider->UnregisterConnStatusChangedHandle(Handle);
 	}
 
+	virtual FDelegateHandle RegisterTimeChangedReceived(const FMayaLiveLinkProviderTimeChangedReceived::FDelegate& TimeChangedReceived) override
+	{ 
+		return LiveLinkProvider->RegisterTimeChangedReceived(TimeChangedReceived);
+	}
+
+	virtual void UnregisterTimeChangedReceived(const FDelegateHandle& TimeChangedReceivedHandle) override
+	{
+		LiveLinkProvider->UnregisterTimeChangedReceived(TimeChangedReceivedHandle);
+	}
+
 	virtual void EnableFileExport(bool Enable, const FString& FilePath = FString()) override final
 	{
 		/*std::cerr << "Unsupported functionality" << std::endl;*/
 	}
 
+	virtual bool GetAssetsByClass(const FString& ClassName,
+								  bool bSearchSubClasses,
+								  TMap<FString, FStringArray>& Assets) override final
+	{
+		Assets.Empty();
+		return LiveLinkProvider.IsValid() && LiveLinkProvider->GetAssetsByClass(ClassName, bSearchSubClasses, Assets);
+	}
+
+	virtual bool GetAnimSequencesBySkeleton(TMap<FString, FStringArray>& Assets) override final
+	{
+		Assets.Empty();
+		return LiveLinkProvider.IsValid() && LiveLinkProvider->GetAnimSequencesBySkeleton(Assets);
+	}
+
+	virtual bool GetAssetsByParentClass(const FString& ClassName,
+										bool bSearchSubClasses,
+										const TArray<FString>& ParentClasses,
+										FStringArray& Assets,
+										FStringArray& NativeAssetClasses) override final
+	{
+		Assets.Array.Empty();
+		return LiveLinkProvider.IsValid() && LiveLinkProvider->GetAssetsByParentClass(ClassName, bSearchSubClasses, ParentClasses, Assets, NativeAssetClasses);
+	}
+
+	virtual bool GetActorsByClass(const FString& ClassName,
+								  TMap<FString, FStringArray>& Actors) override final
+	{
+		Actors.Empty();
+		return LiveLinkProvider.IsValid() && LiveLinkProvider->GetActorsByClass(ClassName, Actors);
+	}
+
+	virtual void OnTimeChanged(const FQualifiedFrameTime& FrameTime) override final
+	{
+		if (LiveLinkProvider.IsValid() && LiveLinkProvider->HasConnection())
+		{
+			LiveLinkProvider->OnTimeChange(FrameTime);
+		}
+	}
+
 private:
-	TSharedPtr<ILiveLinkProvider> LiveLinkProvider;
+	void HandlePingMessage(const FMayaLiveLinkPingMessage& Message,
+						   const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleConnectMessage(const FLiveLinkConnectMessage& Message,
+							  const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleSourceShutdown(const FMayaLiveLinkSourceShutdownMessage& Message,
+							  const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleListAssetsReturn(const FMayaLiveLinkListAssetsReturnMessage& Message,
+								const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleListAssetsByParentClassReturn(const FMayaLiveLinkListAssetsByParentClassReturnMessage& Message,
+											 const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleListActorsReturn(const FMayaLiveLinkListActorsReturnMessage& Message,
+								const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleListAnimSequenceSkeletonReturn(const FMayaLiveLinkListAnimSequenceSkeletonReturnMessage& Message,
+											  const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
+	void HandleTimeChangeReturn(const FMayaLiveLinkTimeChangeReturnMessage& Message,
+								const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+
+private:
+	TSharedPtr<class FMayaLiveLinkProvider> LiveLinkProvider;
+	TSharedPtr<class FMayaLiveLinkMessageInterceptor, ESPMode::ThreadSafe> Interceptor;
 };

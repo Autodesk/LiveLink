@@ -126,9 +126,6 @@ set UNITTEST_UNREAL_VERSION=4_27
 rem Set the Maya Version to use
 set MAYA_VERSION=2022
 
-rem To test the Unreal Engine 5 plugin, use this line instead
-rem set UNITTEST_UNREAL_VERSION=5_0
-
 C:\UnrealEngine\Engine\Restricted\NotForLicensees>cd test
 
 C:\UnrealEngine\Engine\Restricted\NotForLicensees>"C:\Program Files\Autodesk\Maya2022\bin\bin\mayapy.exe" runTests.py

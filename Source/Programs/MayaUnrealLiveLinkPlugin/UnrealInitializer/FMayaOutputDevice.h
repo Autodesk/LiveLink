@@ -22,7 +22,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Misc/OutputDevice.h"
+
+//! Function pointer that tracks the function to be called that prints to Maya console.
+typedef void (*PrintToMayaCb) (const char*, int);
 
 /*! \class	FMayaOutputDevice
 *		\brief Maya output device used to print UE logs in Maya.
@@ -30,19 +33,15 @@
 class FMayaOutputDevice : public FOutputDevice
 {
 public:
-	FMayaOutputDevice(void (*Cb) (const char*)) : PrintToMayaCb(Cb), bAllowLogVerbosity(false) {}
+	FMayaOutputDevice(PrintToMayaCb Callback);
 
-	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
-	{
-		if ((bAllowLogVerbosity && Verbosity <= ELogVerbosity::Log) || (Verbosity <= ELogVerbosity::Display))
-		{
-			PrintToMayaCb(TCHAR_TO_ANSI(V));
-		}
-	}
+	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override;
+
+	virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+
+	void AllowLogVerbosity(bool bAllow) { bAllowLogVerbosity = bAllow; }
 
 private:
-	//! Function pointer that tracks the function to be called that prints to Maya console.
-	void (*PrintToMayaCb) (const char*);
+	PrintToMayaCb PrintToMaya;
 	bool bAllowLogVerbosity;
-
 };

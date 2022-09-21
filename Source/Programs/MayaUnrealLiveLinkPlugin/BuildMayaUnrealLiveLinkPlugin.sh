@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # MIT License
 
 # Copyright (c) 2022 Autodesk, Inc.
@@ -21,8 +23,19 @@
 # SOFTWARE.
 
 scriptDir="$(dirname "$(readlink -f "$0")")"
-BuildTarget=${2:-Development}
 
-$scriptDir/../../../../../Build/BatchFiles/RunUAT.sh BuildGraph -Script=$scriptDir/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" -set:MayaVersion=$1 -set:MayaPlatform=Linux -set:BuildTarget=$BuildTarget -NoXGE
+# arg[1] specifies the Maya version (2020|2022|2023 ...), see BuildMayaUnrealLiveLinkPlugin.xml for default value
+if [ ! -z "$1" ]; then
+    MayaVersion=-set:MayaVersion=$1
+fi
 
+# arg[2] specifies the build target (Debug|Development|Shipping), see BuildMayaUnrealLiveLinkPlugin.xml for default value
+if [ ! -z "$2" ]; then
+    BuildTarget=-set:BuildTarget=$2
+fi
 
+if [ -d "$scriptDir/Staging" ]; then
+    rm -rf "$scriptDir/Staging"
+fi
+
+"${scriptDir}/../../../../../Build/BatchFiles/RunUAT.sh" BuildGraph -Script=Engine/Restricted/NotForLicensees/Source/Programs/MayaUnrealLiveLinkPlugin/BuildMayaUnrealLiveLinkPlugin.xml -Target="Stage Maya Plugin Module" ${MayaVersion} -set:MayaPlatform=Linux ${BuildTarget} -NoXGE

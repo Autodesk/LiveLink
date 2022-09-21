@@ -70,7 +70,7 @@ UnrealInitializer::UnrealInitializer()
 */
 void UnrealInitializer::InitializeUnreal()
 {
-	GEngineLoop.PreInit(TEXT("MayaUnrealLiveLinkPlugin -Messaging"));
+	GEngineLoop.PreInit(TEXT("MayaUnrealLiveLinkPlugin -Messaging -stdout"));
 	ProcessNewlyLoadedUObjects();
 
 	// Tell the module manager is may now process newly-loaded UObjects when new C++ modules are loaded
@@ -85,12 +85,16 @@ void UnrealInitializer::InitializeUnreal()
 //======================================================================
 /*!	\brief	Creates and adds a new output device in UE to print logs.
 
-	\param[in] PrintToMayaCbFp Function pointer to function that prints to Maya.
+	\param[in] Callback Function pointer to function that prints to Maya.
 */
-void UnrealInitializer::AddMayaOutput(void (*PrintToMayaCbFp) (const char*))
+void UnrealInitializer::AddMayaOutput(PrintToMayaCb Callback)
 {
-	GLog->TearDown(); //clean up existing output devices
-	GLog->AddOutputDevice(new FMayaOutputDevice(PrintToMayaCbFp)); //Add Maya output device
+	if (GLog)
+	{
+		GLog->SetCurrentThreadAsPrimaryThread();
+		GLog->TearDown(); //clean up existing output devices
+		GLog->AddOutputDevice(new FMayaOutputDevice(Callback)); //Add Maya output device
+	}
 }
 
 //======================================================================
@@ -98,9 +102,10 @@ void UnrealInitializer::AddMayaOutput(void (*PrintToMayaCbFp) (const char*))
 
 	\param[in] OnChangedCbFp Function pointer to function that refreshes Maya when live link provider changes.
 */
-void UnrealInitializer::StartLiveLink(void (*OnChangedCbFp)())
+void UnrealInitializer::StartLiveLink(void (*OnChangedCbFp)(), void(*OnTimeChangedCbFp)(const struct FQualifiedFrameTime&))
 {
-	if (FUnrealStreamManager::TheOne().GetLiveLinkProvider().IsValid())
+	auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+	if (LiveLinkProvider.IsValid())
 	{
 		FPlatformMisc::LowLevelOutputDebugString(TEXT("Live Link Provider already started!\n"));
 	}
@@ -108,10 +113,15 @@ void UnrealInitializer::StartLiveLink(void (*OnChangedCbFp)())
 	{
 		// We start with message bus as our default provider
 		FUnrealStreamManager::TheOne().SetLiveLinkProvider(LiveLinkSource::MessageBus); // ToDo: Maybe we need a create function instead of set?
+		LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
 	}
 
-	ConnectionStatusChangedHandle = FUnrealStreamManager::TheOne().GetLiveLinkProvider()->
-		RegisterConnStatusChangedHandle(FLiveLinkProviderConnectionStatusChanged::FDelegate::CreateStatic(OnChangedCbFp));
+	ConnectionStatusChangedHandle = LiveLinkProvider->
+		RegisterConnStatusChangedHandle(FMayaLiveLinkProviderConnectionStatusChanged::FDelegate::CreateStatic(OnChangedCbFp));
+
+	TimeChangedReceivedHandle = LiveLinkProvider->
+		RegisterTimeChangedReceived(FMayaLiveLinkProviderTimeChangedReceived::FDelegate::CreateStatic(OnTimeChangedCbFp));
+
 
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("Live Link Provider started!\n"));
 }
@@ -121,22 +131,27 @@ void UnrealInitializer::StartLiveLink(void (*OnChangedCbFp)())
 */
 void UnrealInitializer::StopLiveLink()
 {
-	if (ConnectionStatusChangedHandle.IsValid())
-	{
-		if (FUnrealStreamManager::TheOne().GetLiveLinkProvider().IsValid())
-		{
-			FUnrealStreamManager::TheOne().GetLiveLinkProvider()->UnregisterConnStatusChangedHandle(ConnectionStatusChangedHandle);
-		}
-		ConnectionStatusChangedHandle.Reset();
-	}
+	auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
 
-	if (FUnrealStreamManager::TheOne().GetLiveLinkProvider().IsValid())
+	if (LiveLinkProvider.IsValid())
 	{
+		if (ConnectionStatusChangedHandle.IsValid())
+		{
+			LiveLinkProvider->UnregisterConnStatusChangedHandle(ConnectionStatusChangedHandle);
+		}
+
+		if (TimeChangedReceivedHandle.IsValid())
+		{
+			LiveLinkProvider->UnregisterTimeChangedReceived(TimeChangedReceivedHandle);
+		}
+
 		FPlatformMisc::LowLevelOutputDebugString(TEXT("Deleting Live Link\n"));
 		
-		FUnrealStreamManager::TheOne().GetLiveLinkProvider().Reset();
+		LiveLinkProvider.Reset();
 	}
 
+	ConnectionStatusChangedHandle.Reset();
+	TimeChangedReceivedHandle.Reset();
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("Live Link Provider stopped!\n"));
 }
 
