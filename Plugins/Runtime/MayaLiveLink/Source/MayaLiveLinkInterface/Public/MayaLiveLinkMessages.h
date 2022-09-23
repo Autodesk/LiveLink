@@ -63,40 +63,6 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkPongMessage : public FLiveLinkPong
 };
 
 USTRUCT()
-struct FMayaLiveLinkConnectMessage
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	int32 LiveLinkVersion = 1;
-
-	UPROPERTY()
-	FString MayaLiveLinkVersion;
-
-	UPROPERTY()
-	FString UnrealVersion;
-};
-
-USTRUCT()
-struct FMayaLiveLinkHeartbeatMessage
-{
-	GENERATED_BODY()
-};
-
-USTRUCT()
-struct FMayaLiveLinkClearSubject
-{
-	GENERATED_BODY()
-
-	// Name of the subject to clear
-	UPROPERTY()
-	FName SubjectName;
-
-	FMayaLiveLinkClearSubject() {}
-	FMayaLiveLinkClearSubject(const FName& InSubjectName) : SubjectName(InSubjectName) {}
-};
-
-USTRUCT()
 struct FMayaLiveLinkSourceShutdownMessage
 {
 	GENERATED_BODY()
