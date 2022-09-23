@@ -672,7 +672,7 @@ class MayaUnrealLiveLinkModel():
                 if separatorIndex >= 0:
                     return assets[:separatorIndex], assets[separatorIndex + 1:]
             except:
-                return None, None
+                return assets, None
         return None, None
 
     @staticmethod
@@ -980,6 +980,7 @@ class MayaUnrealLiveLinkSceneManager():
             except:
                 pass
 
+    @staticmethod
     def __getSceneSubjectList():
         if cmds.objExists(MayaUnrealLiveLinkSceneManager.Name):
             if cmds.attributeQuery(MayaUnrealLiveLinkSceneManager.SubjectListName,
@@ -991,6 +992,7 @@ class MayaUnrealLiveLinkSceneManager():
                     return subjectList
         return None
 
+    @staticmethod
     def __addSubject(dagPath, name, type, linkedAsset, targetSequence, unrealClass, unrealNativeClass, subjectList):
         if isinstance(subjectList, dict):
             if dagPath not in subjectList:
@@ -1006,6 +1008,7 @@ class MayaUnrealLiveLinkSceneManager():
                 subjectList[dagPath]['class'] = unrealClass
                 subjectList[dagPath]['unrealNativeClass'] = unrealNativeClass
 
+    @staticmethod
     def __deleteFileInfo():
         if cmds.objExists(MayaUnrealLiveLinkSceneManager.Name):
             cmds.delete(MayaUnrealLiveLinkSceneManager.Name)
@@ -1065,7 +1068,7 @@ def onSelectionChanged(*args, **kwargs):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
-    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.0.1')
+    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.1.0')
 
     print("LiveLinkUI Init:")
     for Command in Commands:

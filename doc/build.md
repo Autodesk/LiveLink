@@ -79,7 +79,7 @@ Under the "*Engine/Restricted/NotForLicensees*" folder, you will see the folder 
 
 ### **5. How to build the plugin**
 
-You can build the plugin using different methods:
+You can build the plugins using different methods:
 1. Go to the "*Source/Programs/MayaUnrealLiveLinkPlugin*" folder.<br>
     * **Windows**: Use the "*BuildMayaUnrealLiveLinkPlugin.bat*" batch file.<br>
     * **Linux**: Use the "*BuildMayaUnrealLiveLinkPlugin.sh*" shell script.
@@ -122,7 +122,6 @@ Windows:
 ➜ BuildUnrealPlugin.bat UnrealPackage Win64
 ```
 
-"UnrealPackage"
 #### Build location
 
 The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Binaries*" folder.
@@ -134,101 +133,30 @@ The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Bi
 ### **6. How To Run Unit Tests**
 Unit tests can be found in the "*test*" folder.
 
-As an example, here is how to run the tests using the Maya 2022 Unreal Engine plugin:
+As an example, here is how to run the tests using the Maya 2023 Unreal Engine plugin:
 ```
-rem Set the Maya Version to use
-set MAYA_VERSION=2022
+C:\UnrealEngine\Engine\Restricted\NotForLicensees\test>set MAYA_VERSION=2023
 
-C:\UnrealEngine\Engine\Restricted\NotForLicensees>cd test
-
-C:\UnrealEngine\Engine\Restricted\NotForLicensees>"C:\Program Files\Autodesk\Maya2022\bin\bin\mayapy.exe" runTests.py
-
- MayaUnrealLiveLinkPlugin initialized
-LiveLink:
+C:\UnrealEngine\Engine\Restricted\NotForLicensees\test>"C:\Program Files\Autodesk\Maya2023\bin\mayapy.exe" test\runTests.py
+Qt WebEngine seems to be initialized from a plugin. Please set Qt::AA_ShareOpenGLContexts using QCoreApplication::setAttribute before constructing QGuiApplication.
+MayaUnrealLiveLinkPlugin initialized
+LiveLinkUI Init:
         Registering Command 'MayaLiveLinkNotifyAndQuit'
-        Registering Command 'MayaUnrealLiveLinkInitialized'
+        Registering Command 'MayaUnrealLiveLinkInitialized'        
+        Registering Command 'MayaUnrealLiveLinkOnSceneOpen'        
+        Registering Command 'MayaUnrealLiveLinkOnScenePreSave'     
         Registering Command 'MayaUnrealLiveLinkRefreshConnectionUI'
         Registering Command 'MayaUnrealLiveLinkRefreshUI'
         Registering Command 'MayaUnrealLiveLinkUI'
+        Registering Command 'MayaUnrealLiveLinkUpdateLinkProgress' 
 test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Started
 LiveLinkAddSubjectCommand joint1
 test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Completed
-.test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Completed
-.test_camera.test_cameraAspectRatio : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraAspectRatio : INFO : Completed
-.test_camera.test_cameraDoF : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraDoF : INFO : Completed
-.test_camera.test_cameraFoV : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraFoV : INFO : Completed
-.test_camera.test_cameraFocalLength : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraFocalLength : INFO : Completed
-.test_camera.test_cameraTranslationRotation : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraTranslationRotation : INFO : Completed
-.test_customAttributes.test_jointsWithCustomAttr : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_customAttributes.test_jointsWithCustomAttr : INFO : Completed
-.test_customAttributes.test_propWithCustomAttr : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_customAttributes.test_propWithCustomAttr : INFO : Completed
-.test_lights.test_directionalLight : INFO : Started
-LiveLinkAddSubjectCommand directionalLight1
-test_lights.test_directionalLight : INFO : Completed
-.test_lights.test_pointLight : INFO : Started
-LiveLinkAddSubjectCommand pointLight1
-test_lights.test_pointLight : INFO : Completed
-.test_lights.test_spotLight : INFO : Started
-LiveLinkAddSubjectCommand spotLight1
-test_lights.test_spotLight : INFO : Completed
-.test_mayaAppTest.test_emptyBaseAnimation : INFO : Started
-test_mayaAppTest.test_emptyBaseAnimation : INFO : Completed
-.test_mayaAppTest.test_polyAnimation : INFO : Started
-test_mayaAppTest.test_polyAnimation : INFO : Completed
-.test_propTransfroms : INFO : Started
-LiveLinkAddSubjectCommand pCube1
-test_propTransfroms : INFO : Completed
-.test_rename.test_renameCamera : INFO : Started
-LiveLinkAddSubjectCommand camera
 
-LiveLinkAddSubjectCommand camera2
-LiveLinkAddSubjectCommand camera3
-test_rename.test_renameCamera : INFO : Completed
-.test_rename.test_renameProp : INFO : Started
-LiveLinkAddSubjectCommand prop
+...
 
-LiveLinkAddSubjectCommand prop2
-LiveLinkAddSubjectCommand prop3
-test_rename.test_renameProp : INFO : Completed
-.test_rename.test_renameSpotLight : INFO : Started
-LiveLinkAddSubjectCommand spotlight
-
-LiveLinkAddSubjectCommand spotlight2
-LiveLinkAddSubjectCommand spotlight3
-test_rename.test_renameSpotLight : INFO : Completed
-.test_rename.test_renameskeletonWithTransfNode : INFO : Started
-LiveLinkAddSubjectCommand Root
-
-LiveLinkAddSubjectCommand Root2
-LiveLinkAddSubjectCommand Root3
-test_rename.test_renameskeletonWithTransfNode : INFO : Completed
-.test_skeletonHierarchy.test_JointOnly : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_JointOnly : INFO : Completed
-.test_skeletonHierarchy.test_TransfNodeOnly : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_TransfNodeOnly : INFO : Completed
-.test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Completed
-.
 ----------------------------------------------------------------------
-Ran 22 tests in 0.806s
+    Ran 25 tests in 3.900s
 
 OK
 ```
