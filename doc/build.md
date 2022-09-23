@@ -131,13 +131,16 @@ The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Bi
 <br>
 
 ### **6. How To Run Unit Tests**
-Unit tests can be found in the "*test*" folder.
+Unit tests can be found in the "*Engine/Restricted/NotForLicensees/test*" folder.
 
 As an example, here is how to run the tests using the Maya 2023 Unreal Engine plugin:
 ```
-C:\UnrealEngine\Engine\Restricted\NotForLicensees\test>set MAYA_VERSION=2023
+Linux:
+➜ /usr/autodesk/maya2023/bin/mayapy runTests.py 
 
-C:\UnrealEngine\Engine\Restricted\NotForLicensees\test>"C:\Program Files\Autodesk\Maya2023\bin\mayapy.exe" test\runTests.py
+Windows:
+➜ "C:\Program Files\Autodesk\Maya2023\bin\mayapy.exe" runTests.py
+
 Qt WebEngine seems to be initialized from a plugin. Please set Qt::AA_ShareOpenGLContexts using QCoreApplication::setAttribute before constructing QGuiApplication.
 MayaUnrealLiveLinkPlugin initialized
 LiveLinkUI Init:
@@ -156,7 +159,7 @@ test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Completed
 ...
 
 ----------------------------------------------------------------------
-    Ran 25 tests in 3.900s
+Ran 25 tests in 3.900s
 
 OK
 ```
