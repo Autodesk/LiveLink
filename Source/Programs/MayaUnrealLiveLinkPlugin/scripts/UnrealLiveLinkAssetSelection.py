@@ -73,6 +73,7 @@ class UnrealLiveLinkAssetSelection(QDialog):
         self.nodeType = ''
         self.doAssetUnlinkCheck = True
         self.doTargetUnlinkCheck = True
+        self.mutex = QMutex()
 
         self.animSequencesBySkeleton = dict()
 
@@ -355,6 +356,8 @@ class UnrealLiveLinkAssetSelection(QDialog):
         self.exec_()
 
     def _getLinkedAssets(self, progressCallback):
+        locker = QMutexLocker(self.mutex)
+
         unrealNativeClasses, assetClasses = self._controller.getLinkedAssets(self.nodeType, self.levelAssets)
 
         uniqueClasses = None
@@ -371,6 +374,8 @@ class UnrealLiveLinkAssetSelection(QDialog):
         return self._controller.getTargetAssets(self.requestedTargetAssetClass)
 
     def _onGetLinkedAssetsResult(self, result):
+        locker = QMutexLocker(self.mutex)
+
         # If result is invalid, inform the user that a timeout occurred
         if result is None:
             self.requestAssetTimeout = True
@@ -647,7 +652,8 @@ class UnrealLiveLinkAssetSelection(QDialog):
                self.targetAssetPath == selectedTargetAssets[2].text():
                 if self.allowLinkedAssetCreation:
                     classIndex = self._linkedAssetClassComboBox.currentIndex()
-                    if self.linkedAssetClass == self._linkedAssetClassComboBox.itemData(classIndex)[0]:
+                    classInfo = self._linkedAssetClassComboBox.itemData(classIndex)
+                    if classInfo and self.linkedAssetClass == classInfo[0]:
                         unlinkState = True
                 else:
                     unlinkState = True
@@ -789,7 +795,9 @@ class UnrealLiveLinkAssetSelection(QDialog):
             self.linkedAssetPath = selectedLinkAssets[2].text() + '/' + selectedLinkAssets[0].text()
             if self.allowLinkedAssetCreation:
                 classIndex = self._linkedAssetClassComboBox.currentIndex()
-                self.linkedAssetClass, self.linkedAssetNativeClass = self._linkedAssetClassComboBox.itemData(classIndex)
+                classInfo = self._linkedAssetClassComboBox.itemData(classIndex)
+                if classInfo:
+                    self.linkedAssetClass, self.linkedAssetNativeClass = classInfo
 
             if len(selectedTargetAssets) >= 3:
                 self.targetAssetName = selectedTargetAssets[0].text()

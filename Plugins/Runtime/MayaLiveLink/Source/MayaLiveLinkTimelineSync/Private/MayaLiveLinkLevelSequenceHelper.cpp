@@ -296,7 +296,6 @@ void UMayaLiveLinkLevelSequenceHelper::PushStaticDataToLevelSequence(const FMaya
 				}
 			}
 
-			const bool bResizeTracks = ActorBinding.IsValid();
 			if (!ActorBinding.IsValid())
 			{
 				// No binding found, so bind the actor to this movie scene to be able to add tracks to it
@@ -391,10 +390,7 @@ void UMayaLiveLinkLevelSequenceHelper::PushStaticDataToLevelSequence(const FMaya
 
 			ULevelSequenceEditorBlueprintLibrary::RefreshCurrentLevelSequence();
 
-			if (bResizeTracks)
-			{
-				ResizeTracks(MovieScene, ActorBinding, TrackBinding);
-			}
+			ResizeTracks(MovieScene, ActorBinding, TrackBinding);
 		}
 	}
 }

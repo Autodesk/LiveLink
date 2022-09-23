@@ -8,13 +8,13 @@ Before building the project, consult the following table to ensure you use the r
 
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
-|    Operating System   |         Windows 10        |       CentOS 7/8            |
-|   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1            |
-| Supported Maya Version|     2019, 2020, 2022, 2023|      2020, 2022, 2023       |
+|    Operating System   |       Windows 10/11       |       CentOS 7/8            |
+|   Compiler Requirement|     VS 2017/2019/2022     |     clang 11.0.1            |
+| Supported Maya Version|      2020, 2022, 2023     |      2020, 2022, 2023       |
 
 |        Optional       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:------------------------------------------------------------:|:---------------------------:|
-|          Qt           | Maya 2019 = 5.6.1<br>Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 |
+|          Qt           | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 |
 
 <br>
 
@@ -24,11 +24,7 @@ The source code is located at https://github.com/EpicGames/UnrealEngine.<br>
 You need special access rights to clone the repository.<br>
 For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
 
-* To build Unreal Engine 4.27.2 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/4.27.2-release).
-    * Linux users need to merge this pull request to avoid memory crashes:<br>
-    https://github.com/EpicGames/UnrealEngine/pull/8710
-    * Linux users also have to edit *SDL2.Build.cs* in "*Engine\Source\ThirdParty\SDL2*" to comment or remove `"Target.LinkType == TargetLinkType.Monolithic"` block so only the `if` and `else` remains.
-* To build Unreal Engine 5.0.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.0.0-release).
+* To build Unreal Engine 5.1.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.1.0-release).
 
 <br>
 
@@ -46,10 +42,10 @@ To build the plugin, you will need to tell to where to find the Maya SDK you jus
 We are using an environment variable to know its location. The location should be set on the `devkitBase` folder.
 
 - **Windows**: 
-Create an environment variable called *MAYA_WIN_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+Create an environment variable called *MAYA_WIN_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2020, 2022, 2023 etc.
 
 - **Linux**: 
-Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2020, 2022, 2023 etc.
 
 For example, if you extracted the Maya 2022 SDK on Windows to `c:\MayaDevKits\2022`, the environment variable would be:
 ```
@@ -87,6 +83,9 @@ You can build the plugin using different methods:
 1. Go to the "*Source/Programs/MayaUnrealLiveLinkPlugin*" folder.<br>
     * **Windows**: Use the "*BuildMayaUnrealLiveLinkPlugin.bat*" batch file.<br>
     * **Linux**: Use the "*BuildMayaUnrealLiveLinkPlugin.sh*" shell script.
+1. Go to the "*Plugins/Runtime/MayaLiveLink*" folder.<br>
+    * **Windows**: Use the "*BuildUnrealPlugin.bat*" batch file.<br>
+    * **Linux**: Use the "*BuildUnrealPlugin.sh*" shell script.
 2. **Windows only**: Open the Unreal Engine .sln file and build the Engine using the "Development Editor" configuration.
 3. **VSCode/CMake**: Set the environment variables MAYA_LOCATION and MAYA_DEVKIT_LOCATION to the proper location before launching VSCode. Build with RelWithDebInfo to compile plugin. After opening a python file the Test Explorer will detect all the python unittests. UE version, MayaVersion and Platform will be detected automatically.
 
@@ -107,6 +106,23 @@ Windows:
 ➜ MayaUnrealLiveLinkPlugin.bat 2022 Win64
 ```
 
+There are two arguments that must be passed to the "*BuildUnrealPlugin*" script: 
+
+| Argument           | Description                               |
+|--------------------|-------------------------------------------|
+|  Package Folder    | The folder where to package the plugin.   |
+|  Host Platform     | Host platforms to compile for.            |
+|                    | Win64+Linux, Win64 or Linux               |
+
+```
+Linux:
+➜ BuildUnrealPlugin.sh UnrealPackage Linux
+
+Windows:
+➜ BuildUnrealPlugin.bat UnrealPackage Win64
+```
+
+"UnrealPackage"
 #### Build location
 
 The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Binaries*" folder.
@@ -118,11 +134,8 @@ The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Bi
 ### **6. How To Run Unit Tests**
 Unit tests can be found in the "*test*" folder.
 
-As an example, here is how to run the tests using the Maya 2022 Unreal Engine 4.27.2 plugin:
+As an example, here is how to run the tests using the Maya 2022 Unreal Engine plugin:
 ```
-rem Testing the Unreal Engine 4.27.2 plugin
-set UNITTEST_UNREAL_VERSION=4_27
-
 rem Set the Maya Version to use
 set MAYA_VERSION=2022
 
@@ -236,4 +249,4 @@ MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Progra
 ```
 Once this is set, run Maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
 
-Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` is `Loaded` and set to `Auto load` and either `MayaUnrealLiveLinkPlugin_4_27` or `MayaUnrealLiveLinkPlugin_5_0` is loaded and auto load, but not both of them at the same time.
+Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` and `MayaUnrealLiveLinkPlugin_5_1` are `Loaded` and set to `Auto load`.

@@ -2420,6 +2420,7 @@ private:
 };
 
 FDetectIdleEvent::FDetectIdleEvent()
+: bRunThread(true)
 {
 	Thread = FRunnableThread::Create(this, TEXT("DetectIdleEvent"));
 }

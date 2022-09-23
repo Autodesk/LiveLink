@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "2.0.1",
+	"VersionName": "2.1.0",
 	"FriendlyName": "Maya Live Link",
 	"Description": "Maya Live Link allows streaming of animated data into the Unreal Editor",
 	"Category": "Animation",
