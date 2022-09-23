@@ -8,7 +8,7 @@ Before building the project, consult the following table to ensure you use the r
 
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
-|    Operating System   |       Windows 10/11       |       CentOS 7/8            |
+|    Operating System   |         Windows 10        |       CentOS 7/8            |
 |   Compiler Requirement|     VS 2017/2019/2022     |     clang 11.0.1            |
 | Supported Maya Version|      2020, 2022, 2023     |      2020, 2022, 2023       |
 
@@ -24,7 +24,7 @@ The source code is located at https://github.com/EpicGames/UnrealEngine.<br>
 You need special access rights to clone the repository.<br>
 For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
 
-* To build Unreal Engine 5.1.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.1.0-release).
+* To build Unreal Engine 5.1.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.1).
 
 <br>
 

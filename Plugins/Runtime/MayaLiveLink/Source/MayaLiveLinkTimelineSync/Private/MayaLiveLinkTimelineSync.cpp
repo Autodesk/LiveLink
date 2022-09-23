@@ -64,7 +64,6 @@ void FMayaLiveLinkTimelineSyncModule::StartupModule()
 	bIgnoreTimeChange = false;
 	bBlockTimeChangeFeedback = true;
 	LastFrameTime.Time.FrameNumber.Value = -1;
-	LastAnimSequenceTime.FrameNumber.Value = -1;
 
 	// Hook on when the sequencer editor is created
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
@@ -184,7 +183,6 @@ void FMayaLiveLinkTimelineSyncModule::OnAnimSequenceEditorPreviewSceneCreated(co
 {
 	bAnimSequenceEditorTimeSync = false;
 	LastFrameTime.Time.FrameNumber = -1;
-	LastAnimSequenceTime.FrameNumber.Value = -1;
 	WeakPreviewScene = TWeakPtr<IPersonaPreviewScene>(InPreviewScene);
 
 	// Hook on when the viewport is redrawn
@@ -280,9 +278,13 @@ void FMayaLiveLinkTimelineSyncModule::HandleInvalidateViews()
 					}
 
 					// HandleInvalidateViews is called every frame, so make sure to do nothing if the time didn't change
-					double CurrentTime = PreviewInstance->GetCurrentTime() + LastFrameTimeCopy.Rate.AsSeconds(FFrameTime(static_cast<int32>(TimeOffset)));
+					double PreviewCurrentTime = PreviewInstance->GetCurrentTime();
+					double CurrentTime = PreviewCurrentTime + LastFrameTimeCopy.Rate.AsSeconds(FFrameTime(static_cast<int32>(TimeOffset)));
 					double PlayLength = PreviewInstance->GetLength();
-					if (LastAnimSequenceTime.FrameNumber == AsFrameNumber(CurrentTime, LastFrameTimeCopy.Rate))
+					const double LastFrameTimeInSeconds = LastFrameTimeCopy.AsSeconds() - LastFrameTimeCopy.Rate.AsSeconds(FFrameTime(static_cast<int32>(TimeOffset)));
+					if (LastFrameTimeCopy.Time.FrameNumber == AsFrameNumber(CurrentTime, LastFrameTimeCopy.Rate) ||
+						LastFrameTimeInSeconds < 0 ||
+						LastFrameTimeInSeconds > PlayLength)
 					{
 						return;
 					}
@@ -300,14 +302,12 @@ void FMayaLiveLinkTimelineSyncModule::HandleInvalidateViews()
 							if (TimeInSeconds >= 0)
 							{
 								LastFrameTime = Time;
-								LastAnimSequenceTime = Time.Time;
 
 								// Broadcast the time change to the Message bus source
 								OnTimeChangedDelegate.Broadcast(Time);
 
 								// Update the sequencer time too if a level sequence is opened
 								SetSequencerTime(Time);
-								bSetGlobalTime = false;
 							}
 						}
 					}
