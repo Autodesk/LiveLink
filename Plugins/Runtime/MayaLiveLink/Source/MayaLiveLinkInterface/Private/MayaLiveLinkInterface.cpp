@@ -32,7 +32,7 @@ IMPLEMENT_MODULE(FMayaLiveLinkInterfaceModule, MayaLiveLinkInterface)
 
 namespace
 {
-	static const FString PluginVersion = "v2.1.0";
+	static const FString PluginVersion = "v2.1.999";
 	static const FString UnrealEngineVersion = VERSION_STRINGIFY(ENGINE_MAJOR_VERSION) TEXT(".") VERSION_STRINGIFY(ENGINE_MINOR_VERSION);
 }
 
