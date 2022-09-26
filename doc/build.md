@@ -9,12 +9,12 @@ Before building the project, consult the following table to ensure you use the r
 |        Required       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:-------------------------:|:---------------------------:|
 |    Operating System   |         Windows 10        |       CentOS 7/8            |
-|   Compiler Requirement|       VS 2017/2019        |     clang 11.0.1            |
-| Supported Maya Version|     2019, 2020, 2022, 2023|      2020, 2022, 2023       |
+|   Compiler Requirement|     VS 2017/2019/2022     |     clang 11.0.1            |
+| Supported Maya Version|      2020, 2022, 2023     |      2020, 2022, 2023       |
 
 |        Optional       | ![](images/windows.png)   |   ![](images/linux.png)     |
 |:---------------------:|:------------------------------------------------------------:|:---------------------------:|
-|          Qt           | Maya 2019 = 5.6.1<br>Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 |
+|          Qt           | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 | Maya 2020 = 5.12.5<br>Maya 2022 = 5.15.2<br>Maya 2023 = 5.15.2 |
 
 <br>
 
@@ -24,11 +24,7 @@ The source code is located at https://github.com/EpicGames/UnrealEngine.<br>
 You need special access rights to clone the repository.<br>
 For additional information on building Unreal Engine, follow the instructions in their own **README.md**.
 
-* To build Unreal Engine 4.27.2 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/4.27.2-release).
-    * Linux users need to merge this pull request to avoid memory crashes:<br>
-    https://github.com/EpicGames/UnrealEngine/pull/8710
-    * Linux users also have to edit *SDL2.Build.cs* in "*Engine\Source\ThirdParty\SDL2*" to comment or remove `"Target.LinkType == TargetLinkType.Monolithic"` block so only the `if` and `else` remains.
-* To build Unreal Engine 5.0.0 use this [tag](https://github.com/EpicGames/UnrealEngine/tree/5.0.0-release).
+* To build Unreal Engine 5.1.0 use this [branch](https://github.com/EpicGames/UnrealEngine/tree/5.1), after this commit https://github.com/EpicGames/UnrealEngine/tree/ad89b811760c0451ffc5d2c9bab4ddf016542ed1 at 09/15/2022 06:51 AM.
 
 <br>
 
@@ -46,10 +42,10 @@ To build the plugin, you will need to tell to where to find the Maya SDK you jus
 We are using an environment variable to know its location. The location should be set on the `devkitBase` folder.
 
 - **Windows**: 
-Create an environment variable called *MAYA_WIN_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+Create an environment variable called *MAYA_WIN_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2020, 2022, 2023 etc.
 
 - **Linux**: 
-Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2019, 2020, 2022, etc.
+Create an environment variable called *MAYA_LNX_DIR_xxxx* where *xxxx* is replaced by the Maya year date of the SDK, e.g. 2020, 2022, 2023 etc.
 
 For example, if you extracted the Maya 2022 SDK on Windows to `c:\MayaDevKits\2022`, the environment variable would be:
 ```
@@ -83,10 +79,13 @@ Under the "*Engine/Restricted/NotForLicensees*" folder, you will see the folder 
 
 ### **5. How to build the plugin**
 
-You can build the plugin using different methods:
+You can build the plugins using different methods:
 1. Go to the "*Source/Programs/MayaUnrealLiveLinkPlugin*" folder.<br>
     * **Windows**: Use the "*BuildMayaUnrealLiveLinkPlugin.bat*" batch file.<br>
     * **Linux**: Use the "*BuildMayaUnrealLiveLinkPlugin.sh*" shell script.
+1. Go to the "*Plugins/Runtime/MayaLiveLink*" folder.<br>
+    * **Windows**: Use the "*BuildUnrealPlugin.bat*" batch file.<br>
+    * **Linux**: Use the "*BuildUnrealPlugin.sh*" shell script.
 2. **Windows only**: Open the Unreal Engine .sln file and build the Engine using the "Development Editor" configuration.
 3. **VSCode/CMake**: Set the environment variables MAYA_LOCATION and MAYA_DEVKIT_LOCATION to the proper location before launching VSCode. Build with RelWithDebInfo to compile plugin. After opening a python file the Test Explorer will detect all the python unittests. UE version, MayaVersion and Platform will be detected automatically.
 
@@ -107,6 +106,22 @@ Windows:
 ➜ MayaUnrealLiveLinkPlugin.bat 2022 Win64
 ```
 
+There are two arguments that must be passed to the "*BuildUnrealPlugin*" script: 
+
+| Argument           | Description                               |
+|--------------------|-------------------------------------------|
+|  Package Folder    | The folder where to package the plugin.   |
+|  Host Platform     | Host platforms to compile for.            |
+|                    | Win64+Linux, Win64 or Linux               |
+
+```
+Linux:
+➜ BuildUnrealPlugin.sh UnrealPackage Linux
+
+Windows:
+➜ BuildUnrealPlugin.bat UnrealPackage Win64
+```
+
 #### Build location
 
 The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Binaries*" folder.
@@ -116,109 +131,35 @@ The binaries will be located under "*Engine\Restricted\NotForLicensees\Source\Bi
 <br>
 
 ### **6. How To Run Unit Tests**
-Unit tests can be found in the "*test*" folder.
+Unit tests can be found in the "*Engine/Restricted/NotForLicensees/test*" folder.
 
-As an example, here is how to run the tests using the Maya 2022 Unreal Engine 4.27.2 plugin:
+As an example, here is how to run the tests using the Maya 2023 Unreal Engine plugin:
 ```
-rem Testing the Unreal Engine 4.27.2 plugin
-set UNITTEST_UNREAL_VERSION=4_27
+Linux:
+➜ /usr/autodesk/maya2023/bin/mayapy runTests.py 
 
-rem Set the Maya Version to use
-set MAYA_VERSION=2022
+Windows:
+➜ "C:\Program Files\Autodesk\Maya2023\bin\mayapy.exe" runTests.py
 
-rem To test the Unreal Engine 5 plugin, use this line instead
-rem set UNITTEST_UNREAL_VERSION=5_0
-
-C:\UnrealEngine\Engine\Restricted\NotForLicensees>cd test
-
-C:\UnrealEngine\Engine\Restricted\NotForLicensees>"C:\Program Files\Autodesk\Maya2022\bin\bin\mayapy.exe" runTests.py
-
- MayaUnrealLiveLinkPlugin initialized
-LiveLink:
+Qt WebEngine seems to be initialized from a plugin. Please set Qt::AA_ShareOpenGLContexts using QCoreApplication::setAttribute before constructing QGuiApplication.
+MayaUnrealLiveLinkPlugin initialized
+LiveLinkUI Init:
         Registering Command 'MayaLiveLinkNotifyAndQuit'
-        Registering Command 'MayaUnrealLiveLinkInitialized'
+        Registering Command 'MayaUnrealLiveLinkInitialized'        
+        Registering Command 'MayaUnrealLiveLinkOnSceneOpen'        
+        Registering Command 'MayaUnrealLiveLinkOnScenePreSave'     
         Registering Command 'MayaUnrealLiveLinkRefreshConnectionUI'
         Registering Command 'MayaUnrealLiveLinkRefreshUI'
         Registering Command 'MayaUnrealLiveLinkUI'
+        Registering Command 'MayaUnrealLiveLinkUpdateLinkProgress' 
 test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Started
 LiveLinkAddSubjectCommand joint1
 test_blendShapeStreaming.test_blendShapeStreamMultipleFrames : INFO : Completed
-.test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_blendShapeStreaming.test_blendShapeStreamSingleFrame : INFO : Completed
-.test_camera.test_cameraAspectRatio : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraAspectRatio : INFO : Completed
-.test_camera.test_cameraDoF : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraDoF : INFO : Completed
-.test_camera.test_cameraFoV : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraFoV : INFO : Completed
-.test_camera.test_cameraFocalLength : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraFocalLength : INFO : Completed
-.test_camera.test_cameraTranslationRotation : INFO : Started
-LiveLinkAddSubjectCommand camera1
-test_camera.test_cameraTranslationRotation : INFO : Completed
-.test_customAttributes.test_jointsWithCustomAttr : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_customAttributes.test_jointsWithCustomAttr : INFO : Completed
-.test_customAttributes.test_propWithCustomAttr : INFO : Started
-LiveLinkAddSubjectCommand joint1
-test_customAttributes.test_propWithCustomAttr : INFO : Completed
-.test_lights.test_directionalLight : INFO : Started
-LiveLinkAddSubjectCommand directionalLight1
-test_lights.test_directionalLight : INFO : Completed
-.test_lights.test_pointLight : INFO : Started
-LiveLinkAddSubjectCommand pointLight1
-test_lights.test_pointLight : INFO : Completed
-.test_lights.test_spotLight : INFO : Started
-LiveLinkAddSubjectCommand spotLight1
-test_lights.test_spotLight : INFO : Completed
-.test_mayaAppTest.test_emptyBaseAnimation : INFO : Started
-test_mayaAppTest.test_emptyBaseAnimation : INFO : Completed
-.test_mayaAppTest.test_polyAnimation : INFO : Started
-test_mayaAppTest.test_polyAnimation : INFO : Completed
-.test_propTransfroms : INFO : Started
-LiveLinkAddSubjectCommand pCube1
-test_propTransfroms : INFO : Completed
-.test_rename.test_renameCamera : INFO : Started
-LiveLinkAddSubjectCommand camera
 
-LiveLinkAddSubjectCommand camera2
-LiveLinkAddSubjectCommand camera3
-test_rename.test_renameCamera : INFO : Completed
-.test_rename.test_renameProp : INFO : Started
-LiveLinkAddSubjectCommand prop
+...
 
-LiveLinkAddSubjectCommand prop2
-LiveLinkAddSubjectCommand prop3
-test_rename.test_renameProp : INFO : Completed
-.test_rename.test_renameSpotLight : INFO : Started
-LiveLinkAddSubjectCommand spotlight
-
-LiveLinkAddSubjectCommand spotlight2
-LiveLinkAddSubjectCommand spotlight3
-test_rename.test_renameSpotLight : INFO : Completed
-.test_rename.test_renameskeletonWithTransfNode : INFO : Started
-LiveLinkAddSubjectCommand Root
-
-LiveLinkAddSubjectCommand Root2
-LiveLinkAddSubjectCommand Root3
-test_rename.test_renameskeletonWithTransfNode : INFO : Completed
-.test_skeletonHierarchy.test_JointOnly : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_JointOnly : INFO : Completed
-.test_skeletonHierarchy.test_TransfNodeOnly : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_TransfNodeOnly : INFO : Completed
-.test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Started
-LiveLinkAddSubjectCommand Root
-test_skeletonHierarchy.test_skeletonWithTransfNode : INFO : Completed
-.
 ----------------------------------------------------------------------
-Ran 22 tests in 0.806s
+Ran 25 tests in 3.900s
 
 OK
 ```
@@ -239,4 +180,4 @@ MAYA_SCRIPT_PATH=C:\UnrealEngine\Engine\Restricted\NotForLicensees\Source\Progra
 ```
 Once this is set, run Maya, go to `File -> Unreal Live Link` to start the UI and select which Unreal version of the plugin if want to use.
 
-Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` is `Loaded` and set to `Auto load` and either `MayaUnrealLiveLinkPlugin_4_27` or `MayaUnrealLiveLinkPlugin_5_0` is loaded and auto load, but not both of them at the same time.
+Alternatively, you can to `Windows -> Setting/Preferences -> Plug-in Manager`, type `Live` to filter the plugins and make sure `MayaUnrealLiveLinkPluginUI.py` and `MayaUnrealLiveLinkPlugin_5_1` are `Loaded` and set to `Auto load`.

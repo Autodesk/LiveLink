@@ -20,21 +20,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "CoreMinimal.h"
+#pragma once
 
-class IUnrealStreamedEntity
+#include "Modules/ModuleInterface.h"
+#include "Features/IModularFeatures.h"
+
+class FMayaLiveLinkPresenceDetector;	
+
+class FMayaLiveLinkModule : public IModuleInterface
 {
 public:
-	virtual ~IUnrealStreamedEntity() {}
+	FMayaLiveLinkModule();
 
-	virtual bool ShouldDisplayInUI() const { return false; }
-	virtual FString GetDagPath() const = 0;
-	virtual FString GetNameDisplayText() const = 0;
-	virtual FString GetRoleDisplayText() const = 0;
-	virtual FString GetSubjectTypeDisplayText() const = 0;
-	virtual bool ValidateSubject() const = 0;
-	virtual bool RebuildSubjectData() = 0;
-	virtual void OnStream(double StreamTime, double CurrentTime) = 0;
-	virtual void SetStreamType(const FString& StreamType) = 0;
-	virtual int GetStreamType() const = 0;
+
+	/**
+	 * Gets a reference to the live link module instance.
+	 *
+	 * @return A reference to the live link module.
+	 */
+	static FMayaLiveLinkModule& Get()
+	{
+		return FModuleManager::LoadModuleChecked<FMayaLiveLinkModule>("MayaLiveLink");
+	}
+
+	//~ Begin IModuleInterface interface
+	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
+	virtual bool SupportsDynamicReloading() override { return false; }
+	//~ End IModuleInterface interface
+
+	virtual FMayaLiveLinkPresenceDetector& GetPresenceDetector() { return *PresenceDetector; }
+
+private:
+	TUniquePtr<FMayaLiveLinkPresenceDetector> PresenceDetector;
 };

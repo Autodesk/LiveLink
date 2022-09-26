@@ -22,43 +22,65 @@
 
 #pragma once
 
-#include "Roles/LiveLinkLightTypes.h"
 #include "IMStreamedEntity.h"
-#include "MStreamedEntity.h"
 
 
-class MLiveLinkLightSubject : public IMStreamedEntity, public MStreamedEntity
+class MLiveLinkLightSubject : public IMStreamedEntity
 {
 public:
-	enum FLightStreamMode : uint16_t
+	enum MLightStreamMode : uint16_t
 	{
 		RootOnly,
 		FullHierarchy,
 		Light,
 	};
 
-	static MStringArray LightStreamOptions;
+	static const MStringArray LightStreamOptions;
 
-	MLiveLinkLightSubject(const MString& InSubjectName, const MDagPath& InRootPath,
-		FLightStreamMode InStreamMode = FLightStreamMode::Light);
+	MLiveLinkLightSubject(const MString& InSubjectName,
+						  const MDagPath& InRootPath,
+						  MLightStreamMode InStreamMode = MLightStreamMode::Light);
 
-	~MLiveLinkLightSubject();
+	virtual ~MLiveLinkLightSubject();
 
 	virtual bool ShouldDisplayInUI() const override;
-	virtual MDagPath GetDagPath() const override;
+	virtual const MDagPath& GetDagPath() const override;
 	virtual MString GetNameDisplayText() const override;
 	virtual MString GetRoleDisplayText() const override;
-	virtual MString GetSubjectTypeDisplayText() const override;
+	virtual MStreamedEntity::Role GetRole() const override { return MStreamedEntity::Light; }
+	virtual const MString& GetSubjectTypeDisplayText() const override;
+	virtual MString GetLinkedAsset() const override { return UnrealAssetPath; }
+	virtual MString GetTargetAsset() const override { return SavedAssetPath + MString("/") + SavedAssetName; }
+	virtual MString GetClass() const override { return UnrealAssetClass; }
+	virtual MString GetUnrealNativeClass() const override { return UnrealNativeClass; }
 
 	virtual bool ValidateSubject() const override;
-	virtual bool RebuildSubjectData() override;
+	virtual bool RebuildSubjectData(bool ForceRelink = false) override;
 	virtual void OnStream(double StreamTime, double CurrentTime) override;
+
 	virtual void SetStreamType(const MString& StreamTypeIn) override;
+	void SetStreamType(MLightStreamMode StreamModeIn);
 	virtual int GetStreamType() const override;
+
+	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) override;
+	virtual void UnlinkUnrealAsset() override;
+	virtual bool IsLinked() const override;
+
+	virtual const MVector& GetLevelSequenceRotationOffset() const override
+	{
+		static const MVector RotationOffset(-90.0f, 0.0f, 0.0f);
+		return RotationOffset;
+	}
 
 private:
 	MString SubjectName;
-	MDagPath RootDagPath;
 
-	FLightStreamMode StreamMode;
+	MLightStreamMode StreamMode;
+
+	bool bLinked;
+	MString UnrealAssetPath;
+	MString UnrealAssetClass;
+	MString SavedAssetPath;
+	MString SavedAssetName;
+	MString UnrealNativeClass;
 };

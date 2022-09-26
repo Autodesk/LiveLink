@@ -22,9 +22,7 @@
 
 #pragma once
 
-#include "JSONLiveLinkProducer.h"
-#include "FUnrealStreamManager.h"
-#include "ILiveLinkProducer.h"
+#include "FMayaOutputDevice.h"
 
 /*! \class	UnrealInitializer
 *		\brief Class responsible for initializing UE side of things.
@@ -38,14 +36,15 @@ public:
 
 	void InitializeUnreal();
 	void UninitializeUnreal();
-	void StartLiveLink(void (*OnChangedCbFp)());
+	void StartLiveLink(void (*OnChangedCbFp)(), void(*OnTimeChangedCbFp)(const struct FQualifiedFrameTime&));
 	void StopLiveLink();
-	void AddMayaOutput(void (*PrintToMayaCb) (const char*));
+	void AddMayaOutput(PrintToMayaCb Callback);
 	bool HasInitializedOnce() const;
 
 private:
 	bool InitializedOnce;
 	FDelegateHandle ConnectionStatusChangedHandle;
+	FDelegateHandle TimeChangedReceivedHandle;
 
 	UnrealInitializer();
 };

@@ -21,27 +21,41 @@
 // SOFTWARE.
 
 #include "MLiveLinkCameraSubject.h"
+#include "MFilmbackRedirectCurve.h"
+#include "MFocalLengthRedirectCurve.h"
 #include "../MayaLiveLinkStreamManager.h"
 #include "Roles/LiveLinkCameraTypes.h"
 
-MLiveLinkCameraSubject::MLiveLinkCameraSubject(const MString& InSubjectName, MDagPath InDagPath,
-	MLiveLinkBaseCameraSubject::MCameraStreamMode InStreamMode)
-	: MLiveLinkBaseCameraSubject(InSubjectName, InStreamMode, InDagPath), CameraPath(InDagPath) {}
+static const std::map<const std::string, const std::shared_ptr<const MRedirectCurve<MFnCamera>>> RedirectedCurves =
+{
+	{ "CurrentFocalLength", std::make_shared<MFocalLengthRedirectCurve>("FieldOfView") },
+	{ "Filmback.SensorWidth", std::make_shared<MFilmbackRedirectCurve>("AspectRatio") },
+	{ "Filmback.SensorHeight", std::make_shared<MFilmbackRedirectCurve>("AspectRatio") },
+};
+
+MLiveLinkCameraSubject::MLiveLinkCameraSubject(const MString& InSubjectName,
+											   MDagPath InDagPath,
+											   MLiveLinkBaseCameraSubject::MCameraStreamMode InStreamMode)
+: MLiveLinkBaseCameraSubject(InSubjectName, InStreamMode, InDagPath), CameraPath(InDagPath)
+, bIsCineCamera(false)
+, bLinked(false)
+{
+}
 
 bool MLiveLinkCameraSubject::ShouldDisplayInUI() const
 {
 	return true;
 }
 
-MDagPath MLiveLinkCameraSubject::GetDagPath() const
+const MDagPath& MLiveLinkCameraSubject::GetDagPath() const
 {
 	return CameraPath;
 }
 
-bool MLiveLinkCameraSubject::RebuildSubjectData()
+bool MLiveLinkCameraSubject::RebuildSubjectData(bool ForceRelink)
 {
 	bool ValidSubject = false;
-	MLiveLinkBaseCameraSubject::RebuildSubjectData();
+	MLiveLinkBaseCameraSubject::RebuildSubjectData(ForceRelink);
 
 	if (StreamMode == MCameraStreamMode::Camera)
 	{
@@ -50,8 +64,16 @@ bool MLiveLinkCameraSubject::RebuildSubjectData()
 		const bool IsDepthOfFieldEnabled = MayaCamera.isDepthOfField(&Status);
 		if (IsDepthOfFieldEnabled)
 		{
-			MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkCameraStaticData>();
-			MayaLiveLinkStreamManager::TheOne().RebuildCameraSubjectData(SubjectName, "Camera");
+			if (!IsLinked())
+			{
+				FLiveLinkCameraStaticData& StaticData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkCameraStaticData>();
+				InitializeStaticData(StaticData);
+				MayaLiveLinkStreamManager::TheOne().RebuildCameraSubjectData(SubjectName, "Camera");
+			}
+			else
+			{
+				RebuildLevelSequenceSubject(SubjectName, GetDagPath(), SavedAssetName, SavedAssetPath, UnrealAssetClass, UnrealAssetPath, ForceRelink);
+			}
 		}
 		ValidSubject = true;
 	}
@@ -61,4 +83,100 @@ bool MLiveLinkCameraSubject::RebuildSubjectData()
 void MLiveLinkCameraSubject::OnStream(double StreamTime, double CurrentTime)
 {
 	StreamCamera(CameraPath, StreamTime, CurrentTime);
+}
+
+void MLiveLinkCameraSubject::SetStreamType(MCameraStreamMode StreamModeIn)
+{
+	if (StreamModeIn != MLiveLinkBaseCameraSubject::Camera)
+	{
+		UnrealAssetPath.clear();
+		UnrealAssetClass.clear();
+		SavedAssetPath.clear();
+		SavedAssetName.clear();
+	}
+	MLiveLinkBaseCameraSubject::SetStreamType(StreamModeIn);
+}
+
+void MLiveLinkCameraSubject::LinkUnrealAsset(const LinkAssetInfo& LinkInfo)
+{
+	if (!bLinked ||
+		(bLinked &&
+		 (LinkInfo.UnrealAssetPath != UnrealAssetPath ||
+		  LinkInfo.UnrealAssetClass != UnrealAssetClass ||
+		  LinkInfo.SavedAssetPath != SavedAssetPath ||
+		  LinkInfo.SavedAssetName != SavedAssetName ||
+		  LinkInfo.UnrealNativeClass != UnrealNativeClass)))
+	{
+		UnrealAssetPath = LinkInfo.UnrealAssetPath;
+		UnrealAssetClass = LinkInfo.UnrealAssetClass;
+		SavedAssetPath = LinkInfo.SavedAssetPath;
+		SavedAssetName = LinkInfo.SavedAssetName;
+		UnrealNativeClass = LinkInfo.UnrealNativeClass;
+		bIsCineCamera = LinkInfo.UnrealNativeClass == "CineCameraActor";
+
+		if (!LinkInfo.bSetupOnly)
+		{
+			bLinked = true;
+
+			RebuildSubjectData();
+
+			// Wait a bit after rebuilding the subject data before sending the curve data to Unreal.
+			// Otherwise, Unreal will ignore it.
+			using namespace std::chrono_literals;
+			std::this_thread::sleep_for(100ms);
+
+			UpdateAnimCurves(GetDagPath());
+		}
+	}
+}
+
+void MLiveLinkCameraSubject::UnlinkUnrealAsset()
+{
+	bIsCineCamera = false;
+	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
+	SetStreamType(StreamMode);
+	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
+}
+
+bool MLiveLinkCameraSubject::IsLinked() const
+{
+	return bLinked &&
+		   UnrealAssetPath.length() &&
+		   UnrealAssetClass.length() &&
+		   SavedAssetPath.length() &&
+		   SavedAssetName.length();
+}
+
+void MLiveLinkCameraSubject::OnAnimCurveEdited(const MString& AnimCurveNameIn, MObject& AnimCurveObject, const MPlug& Plug, double ConversionFactor)
+{
+	MLiveLinkBaseCameraSubject::OnAnimCurveEdited(AnimCurveNameIn, AnimCurveObject, Plug, ConversionFactor);
+
+	if (IsLinked() && !IsCineCamera())
+	{
+		MObject Object = Plug.node();
+		if (!Object.hasFn(MFn::kCamera))
+		{
+			return;
+		}
+
+		MFnCamera Camera(Object);
+
+		// Check if the anim curve should be redirected to another attribute equivalent on the Unreal side
+		const auto RedirectedCurveIter = RedirectedCurves.find(AnimCurveNameIn.asChar());
+		if (RedirectedCurveIter != RedirectedCurves.end())
+		{
+			auto CurveIter = AnimCurves.find(RedirectedCurveIter->first);
+			if (CurveIter != AnimCurves.end())
+			{
+				MString PlugName = Plug.partialName(false, false, false, false, false, false);
+				RedirectedCurveIter->second->BakeKeyFrameRange(CurveIter->second, Camera, PlugName, AnimCurves);
+
+				// Replace the anim curve by the one with the name Unreal is expecting
+				AnimCurves.insert({ RedirectedCurveIter->second->GetName(), std::move(CurveIter->second) });
+				AnimCurves.erase(CurveIter);
+			}
+		}
+	}
 }

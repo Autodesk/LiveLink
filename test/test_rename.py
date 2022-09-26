@@ -160,7 +160,7 @@ class test_rename(unittest.TestCase):
         
         cmds.select(nameRootSkeleton, r=True)
         
-        self.ValidateRename(nameRootSkeleton, 'Character', 'Full Hierarchy', 'Root Only')
+        self.ValidateRename(nameRootSkeleton, 'Character', 'Animation', 'Transform')
 
         # Delete the objects
         cmds.delete(NodeNames)
@@ -177,7 +177,7 @@ class test_rename(unittest.TestCase):
         name = 'spotlight'
         cmds.spotLight(n=name, coneAngle=45)
         
-        self.ValidateRename(name, 'Light', 'Light', 'Root Only')
+        self.ValidateRename(name, 'Light', 'Light', 'Transform')
         
         cmds.delete(name)
         log.info("Completed")
@@ -192,7 +192,7 @@ class test_rename(unittest.TestCase):
         camera = cmds.camera()
         cmds.rename(camera[0], name)
 
-        self.ValidateRename(name, 'Camera', 'Camera', 'Root Only')
+        self.ValidateRename(name, 'Camera', 'Camera', 'Transform')
         
         cmds.delete(name)
         log.info("Completed")
@@ -206,7 +206,7 @@ class test_rename(unittest.TestCase):
         name = 'prop'
         cmds.polyCube(n=name,w=6, h=1, d=1, sx=16, sy=4, sz=4, ax=(0,1,0), cuv=4, ch=1)
 
-        self.ValidateRename(name, 'Prop', 'Root Only', 'Full Hierarchy')
+        self.ValidateRename(name, 'Prop', 'Transform', 'Animation')
         
         cmds.delete(name)
 

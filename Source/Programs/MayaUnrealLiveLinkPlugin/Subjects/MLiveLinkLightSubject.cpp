@@ -22,20 +22,27 @@
 
 #include "MLiveLinkLightSubject.h"
 #include "../MayaLiveLinkStreamManager.h"
-#include "../MayaCommonIncludes.h"
 #include "LiveLinkTypes.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
 #include "../MayaUnrealLiveLinkUtils.h"
 
-MLiveLinkLightSubject::MLiveLinkLightSubject(const MString& InSubjectName, const MDagPath& InRootPath, FLightStreamMode InStreamMode)
-	: MStreamedEntity(InRootPath)
-	, SubjectName(InSubjectName)
-	, RootDagPath(InRootPath)
-	, StreamMode(InStreamMode >= 0 && InStreamMode < LightStreamOptions.length() ? InStreamMode : FLightStreamMode::Light)
-{}
+THIRD_PARTY_INCLUDES_START
+#include <maya/MFnLight.h>
+#include <maya/MFnSpotLight.h>
+THIRD_PARTY_INCLUDES_END
 
-MString LightStreams[3] ={"Root Only", "Full Hierarchy", "Light"};
-MStringArray MLiveLinkLightSubject::LightStreamOptions(LightStreams, 3);
+static const MString LightStreams[3] = { "Transform", "Animation", "Light" };
+const MStringArray MLiveLinkLightSubject::LightStreamOptions(LightStreams, 3);
+
+MLiveLinkLightSubject::MLiveLinkLightSubject(const MString& InSubjectName, const MDagPath& InRootPath, MLightStreamMode InStreamMode)
+: IMStreamedEntity(InRootPath)
+, SubjectName(InSubjectName)
+, StreamMode(InStreamMode >= 0 && InStreamMode < LightStreamOptions.length() ? InStreamMode : MLightStreamMode::Light)
+, bLinked(false)
+{
+}
+
 MLiveLinkLightSubject::~MLiveLinkLightSubject()
 {
 	MayaLiveLinkStreamManager::TheOne().RemoveSubjectFromLiveLink(SubjectName);
@@ -43,69 +50,79 @@ MLiveLinkLightSubject::~MLiveLinkLightSubject()
 
 bool MLiveLinkLightSubject::ShouldDisplayInUI() const
 {
-    return true;
+	return true;
 }
 
- MDagPath MLiveLinkLightSubject::GetDagPath() const
+const MDagPath& MLiveLinkLightSubject::GetDagPath() const
 {
-    return RootDagPath;
+	return RootDagPath;
 }
 
 MString MLiveLinkLightSubject::GetNameDisplayText() const
 {
-    return SubjectName;
+	return SubjectName;
 }
 
 MString MLiveLinkLightSubject::GetRoleDisplayText() const
 {
-    return LightStreamOptions[StreamMode];
+	return LightStreamOptions[StreamMode];
 }
 
-MString MLiveLinkLightSubject::GetSubjectTypeDisplayText() const
+const MString& MLiveLinkLightSubject::GetSubjectTypeDisplayText() const
 {
-    return MString("Light");
+	static const MString LightText("Light");
+	return LightText;
 }
 
 bool MLiveLinkLightSubject::ValidateSubject() const
 {
-    return true;
+	return true;
 }
 
-bool MLiveLinkLightSubject::RebuildSubjectData()
+bool MLiveLinkLightSubject::RebuildSubjectData(bool ForceRelink)
 {
-    bool ValidSubject = false;
+	bool ValidSubject = false;
 	bool IsSpotLight = RootDagPath.hasFn(MFn::kSpotLight);
 
-    if (StreamMode == FLightStreamMode::RootOnly)
-    {
+	if (StreamMode == MLightStreamMode::RootOnly)
+	{
 		MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkTransformStaticData>();
 		return MayaLiveLinkStreamManager::TheOne().RebuildLightSubjectData(SubjectName, "RootOnly");
-    }
-    else if (StreamMode == FLightStreamMode::FullHierarchy)
-    {
+	}
+	else if (StreamMode == MLightStreamMode::FullHierarchy)
+	{
 		MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkSkeletonStaticData>();
 		return MayaLiveLinkStreamManager::TheOne().RebuildLightSubjectData(SubjectName, "FullHierarchy");
-    }
-	else if (StreamMode == FLightStreamMode::Light)
-	{
-		auto& LightData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkLightStaticData>();
-		LightData.bIsInnerConeAngleSupported = IsSpotLight;
-		LightData.bIsOuterConeAngleSupported = IsSpotLight;
-		return MayaLiveLinkStreamManager::TheOne().RebuildLightSubjectData(SubjectName, "Light");
 	}
-    return ValidSubject;
+	else if (StreamMode == MLightStreamMode::Light)
+	{
+		if (!IsLinked())
+		{
+			auto& LightData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkLightStaticData>();
+			LightData.bIsInnerConeAngleSupported = IsSpotLight;
+			LightData.bIsOuterConeAngleSupported = IsSpotLight;
+			return MayaLiveLinkStreamManager::TheOne().RebuildLightSubjectData(SubjectName, "Light");
+		}
+		else
+		{
+			RebuildLevelSequenceSubject(SubjectName, GetDagPath(), SavedAssetName, SavedAssetPath, UnrealAssetClass, UnrealAssetPath, ForceRelink);
+			return true;
+		}
+	}
+	return ValidSubject;
 }
 
 void MLiveLinkLightSubject::OnStream(double StreamTime, double CurrentTime)
 {
-	MFnTransform TransformNode(RootDagPath);
-	MMatrix MayaTransform = TransformNode.transformation().asMatrix();
+	MMatrix MayaTransform = MayaTransform.identity;
+	MObject TransformObject = RootDagPath.node();
+	MayaUnrealLiveLinkUtils::ComputeTransformHierarchy(TransformObject, MayaTransform);
 	MayaUnrealLiveLinkUtils::RotateCoordinateSystemForUnreal(MayaTransform);
 	auto UnrealTransform = MayaUnrealLiveLinkUtils::BuildUETransformFromMayaTransform(MayaTransform);
 	UnrealTransform.SetRotation(UnrealTransform.GetRotation() * FRotator(-90.0f, 0.0f, 0.0f).Quaternion());
 	const auto SceneTime = MayaUnrealLiveLinkUtils::GetMayaFrameTimeAsUnrealTime();
 
-	if (StreamMode == FLightStreamMode::RootOnly)
+	if (StreamMode == MLightStreamMode::RootOnly)
 	{
 		auto& TransformFrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkTransformFrameData>();
 		TransformFrameData.Transform = UnrealTransform;
@@ -114,7 +131,7 @@ void MLiveLinkLightSubject::OnStream(double StreamTime, double CurrentTime)
 
 		MayaLiveLinkStreamManager::TheOne().OnStreamLightSubject(SubjectName, "RootOnly");
 	}
-	else if (StreamMode == FLightStreamMode::FullHierarchy)
+	else if (StreamMode == MLightStreamMode::FullHierarchy)
 	{
 		auto& AnimationData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkAnimationFrameData>();
 		AnimationData.Transforms.Add(UnrealTransform);
@@ -123,51 +140,126 @@ void MLiveLinkLightSubject::OnStream(double StreamTime, double CurrentTime)
 
 		MayaLiveLinkStreamManager::TheOne().OnStreamLightSubject(SubjectName, "FullHierarchy");
 	}
-	else if (StreamMode == FLightStreamMode::Light)
+	else if (StreamMode == MLightStreamMode::Light)
 	{
-		MFnLight Light(RootDagPath);
-
-		auto& LightFrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkLightFrameData>();
-		LightFrameData.Transform = UnrealTransform;
-		LightFrameData.WorldTime = StreamTime;
-		LightFrameData.MetaData.SceneTime = SceneTime;
-		LightFrameData.Intensity = Light.intensity();
-		LightFrameData.LightColor = MayaUnrealLiveLinkUtils::MayaColorToUnreal(Light.color());
-
-		if (RootDagPath.hasFn(MFn::kSpotLight))
+		if (!IsLinked())
 		{
-			MFnSpotLight SpotLight(RootDagPath);
-			auto outerAngle = SpotLight.coneAngle() * 0.5;
-			auto penumbraAngle = SpotLight.penumbraAngle() * 0.5;
-			if (penumbraAngle < 0.0)
+			MFnLight Light(RootDagPath);
+
+			auto& LightFrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkLightFrameData>();
+			LightFrameData.Transform = UnrealTransform;
+			LightFrameData.WorldTime = StreamTime;
+			LightFrameData.MetaData.SceneTime = SceneTime;
+			LightFrameData.Intensity = Light.intensity();
+			LightFrameData.LightColor = MayaUnrealLiveLinkUtils::MayaColorToUnreal(Light.color());
+
+			if (RootDagPath.hasFn(MFn::kSpotLight))
 			{
-				LightFrameData.InnerConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(-penumbraAngle));
+				MFnSpotLight SpotLight(RootDagPath);
+				auto outerAngle = SpotLight.coneAngle() * 0.5;
+				auto penumbraAngle = SpotLight.penumbraAngle() * 0.5;
+				if (penumbraAngle < 0.0)
+				{
+					LightFrameData.InnerConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(-penumbraAngle));
+				}
+				else
+				{
+					outerAngle += penumbraAngle;
+					LightFrameData.InnerConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(outerAngle));
+				}
+				LightFrameData.OuterConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(outerAngle));
 			}
-			else
-			{
-				outerAngle += penumbraAngle;
-				LightFrameData.InnerConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(outerAngle));
-			}
-			LightFrameData.OuterConeAngle = static_cast<float>(MayaUnrealLiveLinkUtils::RadToDeg(outerAngle));
+			MayaLiveLinkStreamManager::TheOne().OnStreamLightSubject(SubjectName, "Light");
 		}
-		MayaLiveLinkStreamManager::TheOne().OnStreamLightSubject(SubjectName, "Light");
+		else
+		{
+			if (AnimCurves.size() != 0)
+			{
+				auto& FrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FMayaLiveLinkLevelSequenceFrameData>();
+				InitializeFrameData(FrameData);
+				AnimCurves.clear();
+				MayaLiveLinkStreamManager::TheOne().OnStreamLevelSequenceSubject(SubjectName);
+			}
+		}
 	}
 }
 
 void MLiveLinkLightSubject::SetStreamType(const MString& StreamTypeIn)
 {
-    for (uint32_t StreamTypeIdx = 0; StreamTypeIdx < LightStreamOptions.length(); ++StreamTypeIdx)
-    {
-        if (LightStreamOptions[StreamTypeIdx] == StreamTypeIn && StreamMode != (FLightStreamMode)StreamTypeIdx)
-        {
-            StreamMode = (FLightStreamMode)StreamTypeIdx;
-            RebuildSubjectData();
-            return;
-        }
-    }
+	for (uint32_t StreamTypeIdx = 0; StreamTypeIdx < LightStreamOptions.length(); ++StreamTypeIdx)
+	{
+		if (LightStreamOptions[StreamTypeIdx] == StreamTypeIn && StreamMode != (MLightStreamMode)StreamTypeIdx)
+		{
+			SetStreamType(static_cast<MLightStreamMode>(StreamTypeIdx));
+			return;
+		}
+	}
+}
+
+void MLiveLinkLightSubject::SetStreamType(MLightStreamMode StreamModeIn)
+{
+	StreamMode = StreamModeIn;
+	if (StreamModeIn != MLightStreamMode::Light)
+	{
+		UnrealAssetPath.clear();
+		UnrealAssetClass.clear();
+		SavedAssetPath.clear();
+		SavedAssetName.clear();
+	}
+	RebuildSubjectData();
 }
 
 int MLiveLinkLightSubject::GetStreamType() const
 {
-    return StreamMode;
+	return StreamMode;
+}
+
+void MLiveLinkLightSubject::LinkUnrealAsset(const LinkAssetInfo& LinkInfo)
+{
+	if (!bLinked ||
+		(bLinked &&
+		 (LinkInfo.UnrealAssetPath != UnrealAssetPath ||
+		  LinkInfo.UnrealAssetClass != UnrealAssetClass ||
+		  LinkInfo.SavedAssetPath != SavedAssetPath ||
+		  LinkInfo.SavedAssetName != SavedAssetName ||
+		  LinkInfo.UnrealNativeClass != UnrealNativeClass)))
+	{
+		UnrealAssetPath = LinkInfo.UnrealAssetPath;
+		UnrealAssetClass = LinkInfo.UnrealAssetClass;
+		SavedAssetPath = LinkInfo.SavedAssetPath;
+		SavedAssetName = LinkInfo.SavedAssetName;
+		UnrealNativeClass = LinkInfo.UnrealNativeClass;
+
+		if (!LinkInfo.bSetupOnly)
+		{
+			bLinked = true;
+
+			RebuildSubjectData();
+
+			// Wait a bit after rebuilding the subject data before sending the curve data to Unreal.
+			// Otherwise, Unreal will ignore it.
+			using namespace std::chrono_literals;
+			std::this_thread::sleep_for(100ms);
+
+			UpdateAnimCurves(GetDagPath());
+		}
+	}
+}
+
+void MLiveLinkLightSubject::UnlinkUnrealAsset()
+{
+	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
+	SetStreamType(StreamMode);
+	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
+}
+
+bool MLiveLinkLightSubject::IsLinked() const
+{
+	return bLinked &&
+		   UnrealAssetPath.length() &&
+		   UnrealAssetClass.length() &&
+		   SavedAssetPath.length() &&
+		   SavedAssetName.length();
 }

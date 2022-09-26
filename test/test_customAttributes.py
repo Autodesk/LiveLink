@@ -50,7 +50,7 @@ class test_customAttributes(unittest.TestCase):
 
     def ExportJsonData(self):
         # Export Json
-        exportJson(nameRootSkeleton, streamType="Full Hierarchy")
+        exportJson(nameRootSkeleton, streamType="Animation")
 
         # Check json files were exported properly and add the file path to self.__files so we can delete them in tearDown function.
         staticDataFilePath = expandFileName(getFileNameForStaticData(nameRootSkeleton))

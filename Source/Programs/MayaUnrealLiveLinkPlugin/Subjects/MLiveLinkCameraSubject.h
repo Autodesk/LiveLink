@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "IMStreamedEntity.h"
-#include "MStreamedEntity.h"
 #include "MLiveLinkBaseCameraSubject.h"
 
 class MLiveLinkCameraSubject : public MLiveLinkBaseCameraSubject
@@ -31,13 +29,26 @@ class MLiveLinkCameraSubject : public MLiveLinkBaseCameraSubject
 public:
 
 	MLiveLinkCameraSubject(const MString& InSubjectName, 
-		MDagPath InDagPath, MLiveLinkBaseCameraSubject::MCameraStreamMode InStreamMode = MLiveLinkBaseCameraSubject::MCameraStreamMode::Camera);
+						   MDagPath InDagPath,
+						   MLiveLinkBaseCameraSubject::MCameraStreamMode InStreamMode = MLiveLinkBaseCameraSubject::MCameraStreamMode::Camera);
 
 	virtual bool ShouldDisplayInUI() const override;
-	virtual MDagPath GetDagPath() const override;
-	virtual bool RebuildSubjectData() override;
+	virtual const MDagPath& GetDagPath() const override;
+	virtual bool RebuildSubjectData(bool ForceRelink = false) override;
 	virtual void OnStream(double StreamTime, double CurrentTime) override;
+	virtual void SetStreamType(MCameraStreamMode StreamModeIn) override;
+
+	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) override;
+	virtual void UnlinkUnrealAsset() override;
+	virtual bool IsLinked() const override;
+
+	virtual void OnAnimCurveEdited(const MString& AnimCurveNameIn, MObject& AnimCurveObject, const MPlug& Plug, double ConversionFactor = 1.0) override;
+
+	bool IsCineCamera() const { return bIsCineCamera; }
 
 private:
 	MDagPath CameraPath;
+	bool bIsCineCamera;
+
+	bool bLinked;
 };

@@ -22,35 +22,37 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "LiveLinkProvider.h"
-
-#include "MayaCommonIncludes.h"
+#include "Misc/FrameRate.h"
+#include "Misc/QualifiedFrameTime.h"
 
 namespace MayaUnrealLiveLinkUtils
 {
-    void SetMatrixRow(double* Row, MVector Vec);
-    double RadToDeg(double Rad);
-    double DegToRad(double Deg);
+	void SetMatrixRow(double* Row, MVector Vec);
+	double RadToDeg(double Rad);
+	double DegToRad(double Deg);
 
-    MMatrix GetScale(const MFnTransform& Joint);
-    MMatrix GetRotationOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
-    MMatrix GetRotation(const MFnTransform& Joint, MTransformationMatrix::RotationOrder& RotOrder);
-    MMatrix GetJointOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
-    MMatrix GetTranslation(const MFnTransform& Joint);
+	MMatrix GetScale(const MFnTransform& Joint);
+	MMatrix GetRotationOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+	MMatrix GetRotation(const MFnTransform& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+	MMatrix GetJointOrientation(const MFnIkJoint& Joint, MTransformationMatrix::RotationOrder& RotOrder);
+	MMatrix GetTranslation(const MFnTransform& Joint);
 	MStatus GetSelectedSubjectDagPath(MDagPath& DagPath);
 
-    void RotateCoordinateSystemForUnreal(MMatrix& InOutMatrix);
-    FTransform BuildUETransformFromMayaTransform(MMatrix& InMatrix);
-    FColor MayaColorToUnreal(MColor Color);
-    FFrameRate GetMayaFrameRateAsUnrealFrameRate();
-    FQualifiedFrameTime GetMayaFrameTimeAsUnrealTime();
-    void OutputRotation(const MMatrix& M);
-    FString StripMayaNamespace(const MString& InName);
+	void ComputeTransformHierarchy(MObject& Node, MMatrix& MayaTransform);
+	void RotateCoordinateSystemForUnreal(MMatrix& InOutMatrix);
+	FTransform BuildUETransformFromMayaTransform(MMatrix& InMatrix);
+	FColor MayaColorToUnreal(MColor Color);
+	FFrameRate GetMayaFrameRateAsUnrealFrameRate();
+	FQualifiedFrameTime GetMayaFrameTimeAsUnrealTime();
+	void OutputRotation(const MMatrix& M);
+	FString StripMayaNamespace(const MString& InName);
 
 	MString GetMStringFromFString(const FString& FString);
 	FString GetFStringFromMString(const MString& String);
 
-    const wchar_t* ConvertTCHARtoWCHAR(const TCHAR* string);
 	void RefreshUI();
+
+	MString GetPlugAliasName(const MPlug& Plug, bool UseLongName = false);
+
+	bool AddUnique(const MDagPath& DagPath, MDagPathArray& DagPathArray);
 }

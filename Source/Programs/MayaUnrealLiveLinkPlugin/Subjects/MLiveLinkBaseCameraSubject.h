@@ -23,9 +23,8 @@
 #pragma once
 
 #include "IMStreamedEntity.h"
-#include "MStreamedEntity.h"
 
-class MLiveLinkBaseCameraSubject : public IMStreamedEntity, public MStreamedEntity
+class MLiveLinkBaseCameraSubject : public IMStreamedEntity
 {
 public:
 	enum MCameraStreamMode : uint16_t
@@ -36,27 +35,50 @@ public:
 	};
 
 	MLiveLinkBaseCameraSubject(const MString& InSubjectName, 
-		MCameraStreamMode InStreamMode = MCameraStreamMode::Camera, const MDagPath& InRootPath = MDagPath());
-	~MLiveLinkBaseCameraSubject();
+							   MCameraStreamMode InStreamMode = MCameraStreamMode::Camera,
+							   const MDagPath& InRootPath = MDagPath());
+	virtual ~MLiveLinkBaseCameraSubject();
 
 	virtual MString GetNameDisplayText() const override;
 	virtual MString GetRoleDisplayText() const override;
-	virtual MString GetSubjectTypeDisplayText() const override;
+	virtual MStreamedEntity::Role GetRole() const override { return MStreamedEntity::Camera; }
+	virtual const MString& GetSubjectTypeDisplayText() const override;
 
 	virtual bool ValidateSubject() const override;
 
-	virtual bool RebuildSubjectData() override;
+	virtual bool RebuildSubjectData(bool ForceRelink = false) override;
 
 	void StreamCamera(const MDagPath& CameraPath, double StreamTime, double CurrentTime);
 
 	virtual void SetStreamType(const MString& StreamTypeIn) override;
+	virtual void SetStreamType(MCameraStreamMode StreamModeIn);
 	virtual int GetStreamType() const override;
 
 	virtual void OnAttributeChanged(const MObject& Object, const MPlug& Plug, const MPlug& OtherPlug) override;
+
+	virtual const MVector& GetLevelSequenceRotationOffset() const override
+	{
+		static const MVector RotationOffset(-90.0f, 0.0f, -90.0f);
+		return RotationOffset;
+	}
+
+	virtual MString GetLinkedAsset() const override { return UnrealAssetPath; }
+	virtual MString GetTargetAsset() const override { return SavedAssetPath + MString("/") + SavedAssetName; }
+	virtual MString GetClass() const override { return UnrealAssetClass; }
+	virtual MString GetUnrealNativeClass() const override { return UnrealNativeClass; }
+
+protected:
+	void InitializeStaticData(struct FLiveLinkCameraStaticData& StaticData);
 
 protected:
 	MString  SubjectName;
 
 	static MStringArray CameraStreamOptions;
 	MCameraStreamMode StreamMode;
+
+	MString UnrealAssetPath;
+	MString UnrealAssetClass;
+	MString SavedAssetPath;
+	MString SavedAssetName;
+	MString UnrealNativeClass;
 };

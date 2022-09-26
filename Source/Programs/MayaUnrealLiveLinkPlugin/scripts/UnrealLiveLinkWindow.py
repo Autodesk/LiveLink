@@ -38,52 +38,10 @@ from UnrealLiveLinkSubjectTable import *
 from UnrealLiveLinkSettings import *
 from UnrealLiveLinkAboutDialog import *
 
-class ToolTipWindow(QDialog):
-    def __init__(self, parent=None):
-        super(ToolTipWindow, self).__init__(parent=parent, f=Qt.Dialog | Qt.FramelessWindowHint)
-        layout = QVBoxLayout()
-        self.textBox = QLabel()
-        palette = self.palette()
-        palette.setColor(QPalette.Window, palette.color(QPalette.ToolTipBase))
-        palette.setColor(QPalette.WindowText, palette.color(QPalette.ToolTipText))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
-        layout.addWidget(self.textBox)
-        self.setLayout(layout)
-
-    def text(self):
-        return self.textBox.text()
-
-    def setText(self, text):
-        if isinstance(text, str) or isinstance(text, unicode):
-            self.textBox.setText(text)
-
-class ButtonHoverWatcher(QObject):
-    def __init__(self, iconName, parent=None):
-        super(ButtonHoverWatcher, self).__init__(parent)
-        self.LeaveIcon = UnrealLiveLinkWindow.createIcon(iconName)
-        if self.LeaveIcon:
-            hoverIcon = QIcon(UnrealLiveLinkWindow.highlightPixmap(self.LeaveIcon.pixmap(32, 32)))
-            self.HoverIcon = hoverIcon
-        else:
-            self.HoverIcon = None
-
-    def eventFilter(self, watched, event):
-        button = watched
-        if button is None or not button.isEnabled():
-            return False
-
-        if event.type() == QEvent.Enter and self.HoverIcon:
-            button.setIcon(self.HoverIcon)
-            return True
-        elif event.type() == QEvent.Leave and self.LeaveIcon:
-            button.setIcon(self.LeaveIcon)
-            return True
-        return False
+from HoverButton import HoverButton
+from ImageUtils import ImageUtils
 
 class UnrealLiveLinkWindow(QWidget):
-    iconPath = ''
-
     PushButtonStyleSheet = '''QPushButton { border: 1px }
                               QPushButton:hover:pressed { background-color: rgb(48, 48, 48); }'''
 
@@ -103,17 +61,12 @@ class UnrealLiveLinkWindow(QWidget):
         self.Controller = weakref.proxy(controller)
         self.ConnectedPicture = None
         self.DisconnectedPicture = None
-        self.lastUESelectorIndex = -1
 
         if parent and windowTitle:
             parent.setWindowTitle(windowTitle)
 
     def __del__(self):
         self.Controller = None
-
-    @staticmethod
-    def setIconPath(path):
-        UnrealLiveLinkWindow.iconPath = path
 
     def openHelpUrl(self):
         docUrl = self.Controller.getDocumentationURL()
@@ -145,16 +98,17 @@ class UnrealLiveLinkWindow(QWidget):
         if self.mainLayout:
             return
 
-        self.ConnectedPicture = UnrealLiveLinkWindow.createIcon('infoConnected')
-        self.DisconnectedPicture = UnrealLiveLinkWindow.createIcon('infoDisconnected')
-        helpPicture = UnrealLiveLinkWindow.createIcon('help')
-        aboutPicture = UnrealLiveLinkWindow.createIcon('about')
-        settingsPicture = UnrealLiveLinkWindow.createIcon('settings')
+        self.ConnectedPicture = ImageUtils.createIcon('infoConnected')
+        self.DisconnectedPicture = ImageUtils.createIcon('infoDisconnected')
+        helpPicture = ImageUtils.createIcon('help')
+        aboutPicture = ImageUtils.createIcon('about')
+        settingsPicture = ImageUtils.createIcon('settings')
 
         self.setFocusPolicy(Qt.StrongFocus)
 
         self.mainLayout = QVBoxLayout()
         self.mainLayout.setContentsMargins(7, 0, 7, 7)
+        self.mainLayout.setSpacing(3)
 
         # Connection Status
         ## Icon
@@ -164,8 +118,11 @@ class UnrealLiveLinkWindow(QWidget):
             color: palette(window-text);
             background: transparent;
             padding-top: 3px;""")
-        self.connectionButton.setIconSize(QSize(20, 20))
-        self.connectionButton.setFixedSize(QSize(20, 20))
+        size3 = self.Controller.getDpiScale(3)
+        size20 = self.Controller.getDpiScale(20)
+        size24 = self.Controller.getDpiScale(24)
+        self.connectionButton.setIconSize(QSize(size20, size20))
+        self.connectionButton.setFixedSize(QSize(size24, size24))
         self.connectionButton.setContentsMargins(0,0,0,0)
         
         ## Label
@@ -178,13 +135,21 @@ class UnrealLiveLinkWindow(QWidget):
         # Menu bar
         menuBar = QMenuBar(self)
 
-        #Edit Menu
-        self.editMenu = menuBar.addMenu('Edit')
+        # Option Menu
+        self.optionsMenu = menuBar.addMenu('Options')
+        self.optionsMenu.setToolTipsVisible(True)
         ## Settings action
         self.settingsAction = QAction(settingsPicture, 'Settings', self)
         self.settingsAction.triggered.connect(self.openSettings)
-        
-        self.editMenu.addAction(self.settingsAction)
+        # Sync time checkbox
+        self.syncTimeAction = QAction('Sync Time', self)
+        self.syncTimeAction.setToolTip('Enable to synchronize Maya\'s Time Slider with Unreal\'s playhead')
+        self.syncTimeAction.setCheckable(True)
+        self.syncTimeAction.setChecked(False)
+        self.syncTimeAction.triggered.connect(self._enablePlayheadSync)
+        # Add actions to Option Menu
+        self.optionsMenu.addAction(self.settingsAction)
+        self.optionsMenu.addAction(self.syncTimeAction)
         
         # Help Menu
         helpMenu = menuBar.addMenu('Help')
@@ -231,32 +196,52 @@ class UnrealLiveLinkWindow(QWidget):
 
         # Button layout
         buttonLayout = QHBoxLayout()
+        buttonLayout.setContentsMargins(0, 3, 0, 3)
         self.table = UnrealLiveLinkSubjectTable(self)
 
         # Add selection
-        buttonHoverWatcher = ButtonHoverWatcher('add', self)
-        self.addSelectionButton = QPushButton(buttonHoverWatcher.LeaveIcon, 'Add Selection')
-        self.addSelectionButton.setIconSize(QSize(20, 20))
-        self.addSelectionButton.setFixedHeight(20)
-        self.addSelectionButton.setStyleSheet(self.PushButtonStyleSheet)
+        self.addSelectionButton = HoverButton.fromIconName('add', 'Add Selection ', False, self)
+        self.addSelectionButton.setIconSize(QSize(size24, size24))
+        self.addSelectionButton.setFixedHeight(size24)
         self.addSelectionButton.setToolTip('Add selected node')
         self.addSelectionButton.clicked.connect(self.table._addRow)
-        self.addSelectionButton.installEventFilter(buttonHoverWatcher)
+        self.addSelectionButton.setEnabled(False)
         buttonLayout.addWidget(self.addSelectionButton)
 
         spacer = QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Preferred)
         buttonLayout.addItem(spacer)
 
+        # Pause Animation sequence streaming
+        self.pauseIcon = ImageUtils.createIcon('pause')
+        self.pauseHoverIcon = ImageUtils.createHoverIcon(self.pauseIcon)
+        self.playIcon = ImageUtils.createIcon('play')
+        self.playHoverIcon = ImageUtils.createHoverIcon(self.playIcon)
+        self.pauseAnimSyncButton = HoverButton.fromIcon(self.pauseIcon, self.pauseHoverIcon, '', True, self)
+        self.pauseAnimSyncButton.setIconSize(QSize(size24, size24))
+        self.pauseAnimSyncButton.setFixedSize(QSize(size24, size24))
+        self.pauseAnimSyncButton.setToolTip('Pause streaming Maya\'s timeline data to Unreal Engine\'s Animation Sequence')
+        self.pauseAnimSyncButton.setEnabled(False)
+        self._pauseAnimSyncButtonPauseState = True
+        self.pauseAnimSyncButton.clicked.connect(self._pauseAnimSeqSync)
+        buttonLayout.addWidget(self.pauseAnimSyncButton, alignment=Qt.AlignTop)
+
+        buttonLayout.addSpacing(size3)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setStyleSheet('background-color: rgb(86, 86, 86)')
+        separator.setFixedWidth(2)
+        buttonLayout.addWidget(separator)
+
+        buttonLayout.addSpacing(size3)
+
         # Delete selection
-        buttonHoverWatcher = ButtonHoverWatcher('delete', self)
-        self.deleteSelectionButton = QPushButton(buttonHoverWatcher.LeaveIcon, '')
-        self.deleteSelectionButton.setIconSize(QSize(20, 20))
-        self.deleteSelectionButton.setFixedSize(QSize(20, 20))
-        self.deleteSelectionButton.setStyleSheet(self.PushButtonStyleSheet)
+        self.deleteSelectionButton = HoverButton.fromIconName('delete', '', True, self)
+        self.deleteSelectionButton.setIconSize(QSize(size24, size24))
+        self.deleteSelectionButton.setFixedSize(QSize(size24, size24))
         self.deleteSelectionButton.setToolTip('Delete selection')
         self.deleteSelectionButton.setEnabled(False)
         self.deleteSelectionButton.clicked.connect(self.table._removeRow)
-        self.deleteSelectionButton.installEventFilter(buttonHoverWatcher)
         buttonLayout.addWidget(self.deleteSelectionButton, alignment=Qt.AlignTop)
 
         self.mainLayout.addLayout(buttonLayout)
@@ -267,29 +252,24 @@ class UnrealLiveLinkWindow(QWidget):
         # Create a status bar layout
         layout = QHBoxLayout()
 
-        # UE selector
-        self._ueSelector = QComboBox()
-        self._ueSelector.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self._ueSelector.setToolTip('Please use this drop-down to select which plugin to load\nbased on the Unreal version you are using.')
-        unrealVersion = self.Controller.getLoadedUnrealVersion()
-        self._initUESelector()
-        if unrealVersion == -1:
-            self._ueSelector.setCurrentIndex(-1)
-        else:
-            self._ueSelector.setCurrentIndex(0 if unrealVersion == 4 else 1)
-            self._ueSelector.setMinimumContentsLength(1)
-            self._ueSelector.setMaximumWidth(self._ueSelector.sizeHint().width())
-        self.lastUESelectorIndex = self._ueSelector.currentIndex()
-        self._ueSelector.currentIndexChanged.connect(self._onUnrealVersionChanged)
-        layout.addWidget(self._ueSelector)
-        self._toolTipWindow = None
-
         # Log label
         self._logLabel = QLabel('')
         self._logLabel.setTextFormat(Qt.RichText)
         layout.addWidget(self._logLabel)
         spacer = QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addItem(spacer)
+
+        # Link progress bar
+        self.linkProgressLabel = QLabel()
+        self.linkProgressLabel.setText(r'Syncing')
+        layout.addWidget(self.linkProgressLabel)
+        self.linkProgressBar = QProgressBar()
+        self.linkProgressBar.setMinimum(0)
+        self.linkProgressBar.setMaximum(100)
+        self.linkProgressBar.setValue(0)
+        self.linkProgressBar.setMaximumWidth(250)
+        layout.addWidget(self.linkProgressBar)
+        self.setLinkProgress(0, False)
 
         # Update label
         self.updateLabel = QLabel()
@@ -305,9 +285,6 @@ class UnrealLiveLinkWindow(QWidget):
         self.mainLayout.addLayout(layout)
 
         self.setLayout(self.mainLayout)
-
-        if unrealVersion == -1:
-            self.enableControls(False)
 
     def logMessage(self, message, timeToClear=3000):
         if len(message) > 0:
@@ -330,40 +307,7 @@ class UnrealLiveLinkWindow(QWidget):
             if connectionPicture:
                 self.connectionButton.setIcon(connectionPicture)
 
-    @staticmethod
-    def createIcon(iconName):
-        icon = QIcon()
-        availableSizes = ['1', '2', '3']
-        for size in availableSizes:
-            path = os.path.join(UnrealLiveLinkWindow.iconPath, iconName + '@' + size + 'x.png')
-            if os.path.isfile(path):
-                icon.addFile(path)
-        return icon
-
-    @staticmethod
-    def highlightPixmap(pixmap):
-        img = QImage(pixmap.toImage().convertToFormat(QImage.Format_ARGB32))
-        imgh = img.height()
-        imgw = img.width()
-
-        for y in range (0, imgh, 1):
-            for x in range (0, imgw, 1):
-                pixel = img.pixel(x, y)
-                highLimit = 205 # value above this limit will just max up to 255
-                lowLimit = 30 # value below this limit will not be adjusted
-                adjustment = 255 - highLimit
-                color = QColor(pixel)
-                v = color.value()
-                s = color.saturation()
-                h = color.hue()
-                if(v > lowLimit):
-                    if (v < highLimit):
-                        v = v + adjustment
-                    else:
-                        v = 255
-                v = color.setHsv(h, s, v)
-                img.setPixel(x, y, qRgba(color.red(), color.green(), color.blue(), qAlpha(pixel)))
-        return QPixmap(img)
+            self.table.connectionStateChanged(self.ConnectedState)
 
     def clearUI(self):
         if self.table:
@@ -372,26 +316,23 @@ class UnrealLiveLinkWindow(QWidget):
     def refreshUI(self):
         if self.table:
             self.table._refreshUI()
-        self._refreshUESelector()
+        self.syncTimeAction.setChecked(self.Controller.isPlayheadSyncEnabled())
 
     def showEvent(self, event):
-        self._refreshUESelector()
+        unrealVersion = self.Controller.getLoadedUnrealVersion()
+        self.enableControls(unrealVersion != -1)
         super(UnrealLiveLinkWindow, self).showEvent(event)
 
     def hideEvent(self, event):
-        self._deleteUESelectorToolTip()
         super(UnrealLiveLinkWindow, self).hideEvent(event)
 
     def closeEvent(self, event):
-        self._deleteUESelectorToolTip()
         super(UnrealLiveLinkWindow, self).closeEvent(event)
 
     def paintEvent(self, event):
-        self._moveUESelectorToolTip()
         super(UnrealLiveLinkWindow, self).paintEvent(event)
 
     def moveEvent(self, event):
-        self._moveUESelectorToolTip()
         super(UnrealLiveLinkWindow, self).moveEvent(event)
 
     def setWindowRect(self, tlc, w, h):
@@ -410,90 +351,42 @@ class UnrealLiveLinkWindow(QWidget):
     def notifyNewerUpdate(self):
         url = self.Controller.getUpdateURL()
         if url and len(url) > 0:
-            self.updateLabel.setText('<a href="' + url + '">Update Available</a>')
+            self.updateLabel.setText(self._getUpdateText(url))
             self.updateLabel.show()
+
+    def setLinkProgress(self, value, visible):
+        self.linkProgressLabel.setVisible(visible)
+        self.linkProgressBar.setVisible(visible)
+        self.linkProgressBar.setValue(value)
+
+        if value == self.linkProgressBar.maximum():
+            # Keep the progress bar around to show the user that linking is finished
+            QTimer.singleShot(1000, lambda: self.setLinkProgress(0, False))
+
+    def updateLinkInfo(self, dagPath, linkedAssetPath, targetAssetPath, targetAssetName, linkedAssetClass, linkedAssetUnrealNativeClass):
+        self.table.updateLinkInfo(dagPath, linkedAssetPath, targetAssetPath, targetAssetName, linkedAssetClass, linkedAssetUnrealNativeClass)
+
+    def selectedObject(self, hasSelection):
+        self.addSelectionButton.setEnabled(self.table.isEnabled() and hasSelection)
+
+    def isPauseAnimSeqSyncEnabled(self):
+        return not self._pauseAnimSyncButtonPauseState
 
     def _getUpdateText(self, url):
         return '<a href="' + url + '">Update Available</a>' if url and len('URL') > 0 else ''
 
     def enableControls(self, enable):
-        self.addSelectionButton.setEnabled(enable)
         self.settingsAction.setEnabled(enable)
         self.aboutAction.setEnabled(enable)
         self.table.setEnabled(enable)
 
-    def _onUnrealVersionChanged(self, index):
-        if index == self.lastUESelectorIndex:
-            return
+    def _enablePlayheadSync(self, state):
+        self.Controller.enablePlayheadSync(self.syncTimeAction.isChecked())
 
-        if index >= 0:
-            # Resize the combo box to take only the necessary space
-            self._ueSelector.setMinimumContentsLength(1)
-            self._ueSelector.setMaximumWidth(self._ueSelector.sizeHint().width())
-            self._ueSelector.setEditable(False)
-
-            # Change the loaded Unreal version for the next reboot
-            if self.Controller.setLoadedUnrealVersion(self._ueSelector.itemData(index)):
-                self.enableControls(True)
-            else:
-                self._ueSelector.setCurrentIndex(self.lastUESelectorIndex)
-
-            if self._toolTipWindow and self._toolTipWindow.isVisible():
-                self._toolTipWindow.hide()
+    def _pauseAnimSeqSync(self, state):
+        self.Controller.pauseAnimSeqSync(self._pauseAnimSyncButtonPauseState)
+        if self._pauseAnimSyncButtonPauseState:
+            self.pauseAnimSyncButton.replaceIcons(self.playIcon, self.playHoverIcon)
         else:
-            self._ueSelector.currentIndexChanged.disconnect()
-            self._initUESelector()
-            self._ueSelector.setCurrentIndex(-1)
-            self._ueSelector.currentIndexChanged.connect(self._onUnrealVersionChanged)
-            self.enableControls(False)
-
-        self.lastUESelectorIndex = self._ueSelector.currentIndex()
-
-    def _initUESelector(self):
-        self._ueSelector.clear()
-        instructions = 'Please select the Unreal version to use'
-        # If the plugin is not loaded, let the user know to set the Unreal version before using the plugin
-        self._ueSelector.setMinimumContentsLength(len(instructions))
-        self._ueSelector.setEditable(True)
-        self._ueSelector.lineEdit().setPlaceholderText(instructions)
-
-        versionInfo = PySide2.__version_info__
-        palette = self._ueSelector.lineEdit().palette()
-        if versionInfo[0] >= 5 and versionInfo[1] >= 12:
-            palette.setColor(QPalette.PlaceholderText, palette.color(QPalette.WindowText))
-        palette.setColor(QPalette.Base, palette.color(QPalette.Button))
-        self._ueSelector.setPalette(palette)
-        self._ueSelector.lineEdit().setReadOnly(True)
-        self._ueSelector.setMaximumWidth(self._ueSelector.sizeHint().width())
-        self._ueSelector.addItem('UE 4.27.2', 4)
-        self._ueSelector.addItem('UE 5.0.0', 5)
-        self._ueSelector.addItem(instructions, -1)
-        self._ueSelector.removeItem(2)
-
-    def _refreshUESelector(self):
-        if self.Controller:
-            unrealVersion = self.Controller.getLoadedUnrealVersion()
-            if unrealVersion == -1:
-                if self.lastUESelectorIndex != unrealVersion:
-                    self._ueSelector.setCurrentIndex(-1)
-                self._createUESelectorToolTip()
-                self._toolTipWindow.show()
-                self._moveUESelectorToolTip()
-            else:
-                self._ueSelector.setCurrentIndex(0 if unrealVersion == 4 else 1)
-
-    def _createUESelectorToolTip(self):
-        self._deleteUESelectorToolTip()
-        self._toolTipWindow = ToolTipWindow(self)
-        self._toolTipWindow.setText(self._ueSelector.toolTip())
-
-    def _deleteUESelectorToolTip(self):
-        if self._toolTipWindow:
-            self._toolTipWindow.hide()
-            del self._toolTipWindow
-            self._toolTipWindow = None
-
-    def _moveUESelectorToolTip(self):
-        if self._toolTipWindow and self._toolTipWindow.isVisible():
-            self._toolTipWindow.move(self._ueSelector.mapToGlobal(QPoint(self._ueSelector.width() + 5, 0)))
-            self._toolTipWindow.raise_()
+            self.pauseAnimSyncButton.replaceIcons(self.pauseIcon, self.pauseHoverIcon)
+        self._pauseAnimSyncButtonPauseState = not self._pauseAnimSyncButtonPauseState

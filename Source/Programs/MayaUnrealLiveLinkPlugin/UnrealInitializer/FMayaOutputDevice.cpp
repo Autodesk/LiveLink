@@ -20,11 +20,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using UnrealBuildTool;
+#include "FMayaOutputDevice.h"
 
-public class MayaUnrealLiveLinkPlugin2019 : MayaUnrealLiveLinkPlugin
+#include "CoreMinimal.h"
+
+FMayaOutputDevice::FMayaOutputDevice(PrintToMayaCb Callback)
+: PrintToMaya(Callback)
+, bAllowLogVerbosity(false)
 {
-	public MayaUnrealLiveLinkPlugin2019(ReadOnlyTargetRules Target) : base(Target, "2019")
+}
+
+void FMayaOutputDevice::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category)
+{
+	if ((bAllowLogVerbosity && Verbosity <= ELogVerbosity::Log) || (Verbosity <= ELogVerbosity::Display))
 	{
+		int Severity = 0;
+		switch (Verbosity)
+		{
+			case ELogVerbosity::Warning:
+				Severity = 1;
+				break;
+			case ELogVerbosity::Error:
+			case ELogVerbosity::Fatal:
+				Severity = 2;
+				break;
+		}
+		PrintToMaya(TCHAR_TO_ANSI(V), Severity);
 	}
 }

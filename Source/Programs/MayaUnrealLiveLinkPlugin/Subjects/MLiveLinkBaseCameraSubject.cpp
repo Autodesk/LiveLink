@@ -24,17 +24,21 @@
 #include "../MayaLiveLinkStreamManager.h"
 #include "IMStreamedEntity.h"
 #include "MStreamedEntity.h"
-#include "../MayaCommonIncludes.h"
 #include "LiveLinkTypes.h"
 #include "Roles/LiveLinkCameraTypes.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
 #include "../MayaUnrealLiveLinkUtils.h"
 
-MString CameraStreams[3] = { "Root Only", "Full Hierarchy", "Camera" };
+THIRD_PARTY_INCLUDES_START
+#include <maya/MDistance.h>
+THIRD_PARTY_INCLUDES_END
+
+MString CameraStreams[3] = { "Transform", "Animation", "Camera" };
 MStringArray MLiveLinkBaseCameraSubject::CameraStreamOptions (CameraStreams, 3);
 
 MLiveLinkBaseCameraSubject::MLiveLinkBaseCameraSubject(const MString& InSubjectName, MCameraStreamMode InStreamMode, const MDagPath& InRootPath)
-	: MStreamedEntity(InRootPath)
+	: IMStreamedEntity(InRootPath)
 	, SubjectName(InSubjectName)
 	, StreamMode(InStreamMode >= 0 && InStreamMode < CameraStreamOptions.length() ? InStreamMode : MCameraStreamMode::Camera)
 {}
@@ -54,9 +58,10 @@ MString MLiveLinkBaseCameraSubject::GetRoleDisplayText() const
 	return CameraStreamOptions[StreamMode];
 }
 
-MString MLiveLinkBaseCameraSubject::GetSubjectTypeDisplayText() const
+const MString& MLiveLinkBaseCameraSubject::GetSubjectTypeDisplayText() const
 {
-	return MString("Camera");
+	static const MString CameraText("Camera");
+	return CameraText;
 }
 
 bool MLiveLinkBaseCameraSubject::ValidateSubject() const
@@ -64,7 +69,7 @@ bool MLiveLinkBaseCameraSubject::ValidateSubject() const
 	return true;
 }
 
-bool MLiveLinkBaseCameraSubject::RebuildSubjectData()
+bool MLiveLinkBaseCameraSubject::RebuildSubjectData(bool ForceRelink)
 {
 	bool ValidSubject = false;
 	if (StreamMode == MCameraStreamMode::RootOnly)
@@ -79,8 +84,16 @@ bool MLiveLinkBaseCameraSubject::RebuildSubjectData()
 	}
 	else if (StreamMode == MCameraStreamMode::Camera)
 	{
-		MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkCameraStaticData>();
-		return MayaLiveLinkStreamManager::TheOne().RebuildBaseCameraSubjectData(SubjectName, "Camera");
+		if (!IsLinked())
+		{
+			FLiveLinkCameraStaticData& StaticData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkCameraStaticData>();
+			InitializeStaticData(StaticData);
+			return MayaLiveLinkStreamManager::TheOne().RebuildBaseCameraSubjectData(SubjectName, "Camera");
+		}
+		else
+		{
+			RebuildLevelSequenceSubject(SubjectName, GetDagPath(), SavedAssetName, SavedAssetPath, UnrealAssetClass, UnrealAssetPath, ForceRelink);
+		}
 	}
 	return ValidSubject;
 }
@@ -128,18 +141,31 @@ void MLiveLinkBaseCameraSubject::StreamCamera(const MDagPath& CameraPath, double
 		}
 		else if (StreamMode == MCameraStreamMode::Camera)
 		{
-			auto& CameraData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkCameraFrameData>();;
-			CameraData.Transform = CameraTransform;
-			CameraData.WorldTime = StreamTime;
-			CameraData.MetaData.SceneTime = SceneTime;
-			CameraData.Aperture = C.fStop();
-			CameraData.AspectRatio = C.aspectRatio();
-			CameraData.FieldOfView = MayaUnrealLiveLinkUtils::RadToDeg(C.horizontalFieldOfView());
-			CameraData.FocalLength = C.focalLength();
-			CameraData.FocusDistance = C.focusDistance();
-			CameraData.ProjectionMode = C.isOrtho() ? ELiveLinkCameraProjectionMode::Orthographic : ELiveLinkCameraProjectionMode::Perspective;
+			if (!IsLinked())
+			{
+				auto& CameraData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkCameraFrameData>();
+				CameraData.Transform = CameraTransform;
+				CameraData.WorldTime = StreamTime;
+				CameraData.MetaData.SceneTime = SceneTime;
+				CameraData.Aperture = C.fStop();
+				CameraData.AspectRatio = C.aspectRatio();
+				CameraData.FieldOfView = MayaUnrealLiveLinkUtils::RadToDeg(C.horizontalFieldOfView());
+				CameraData.FocalLength = C.focalLength();
+				CameraData.FocusDistance = C.focusDistance();
+				CameraData.ProjectionMode = C.isOrtho() ? ELiveLinkCameraProjectionMode::Orthographic : ELiveLinkCameraProjectionMode::Perspective;
 
-			MayaLiveLinkStreamManager::TheOne().StreamCamera(SubjectName, "Camera");
+				MayaLiveLinkStreamManager::TheOne().StreamCamera(SubjectName, "Camera");
+			}
+			else
+			{
+				if (AnimCurves.size() != 0)
+				{
+					auto& FrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FMayaLiveLinkLevelSequenceFrameData>();
+					InitializeFrameData(FrameData);
+					AnimCurves.clear();
+					MayaLiveLinkStreamManager::TheOne().OnStreamLevelSequenceSubject(SubjectName);
+				}
+			}
 		}
 	}
 }
@@ -150,11 +176,16 @@ void MLiveLinkBaseCameraSubject::SetStreamType(const MString& StreamTypeIn)
 	{
 		if (CameraStreamOptions[StreamTypeIdx] == StreamTypeIn && StreamMode != (MCameraStreamMode)StreamTypeIdx)
 		{
-			StreamMode = (MCameraStreamMode)StreamTypeIdx;
-			RebuildSubjectData();
+			SetStreamType(static_cast<MCameraStreamMode>(StreamTypeIdx));
 			return;
 		}
 	}
+}
+
+void MLiveLinkBaseCameraSubject::SetStreamType(MCameraStreamMode StreamModeIn)
+{
+	StreamMode = StreamModeIn;
+	RebuildSubjectData();
 }
 
 int MLiveLinkBaseCameraSubject::GetStreamType() const
@@ -164,13 +195,34 @@ int MLiveLinkBaseCameraSubject::GetStreamType() const
 
 void MLiveLinkBaseCameraSubject::OnAttributeChanged(const MObject& Object, const MPlug& Plug, const MPlug& OtherPlug)
 {
-	if (Object.hasFn(MFn::kCamera))
+	if (!IsLinked() && Object.hasFn(MFn::kCamera))
 	{
 		MStatus Status;
 		MString PlugName = Plug.partialName(false, false, false, false, false, false, &Status);
-		if (Status && PlugName == "dof")
+		if (Status &&
+			(PlugName == "dof" ||
+			 PlugName == "hfa" ||
+			 PlugName == "vfa"))
 		{
 			RebuildSubjectData();
 		}
 	}
+
+	IMStreamedEntity::OnAttributeChanged(Object, Plug, OtherPlug);
+}
+
+void MLiveLinkBaseCameraSubject::InitializeStaticData(FLiveLinkCameraStaticData& StaticData)
+{
+	StaticData.bIsAspectRatioSupported = true;
+	StaticData.bIsFieldOfViewSupported = true;
+	StaticData.bIsFocalLengthSupported = true;
+	StaticData.bIsProjectionModeSupported = true;
+
+	MFnCamera C(RootDagPath);
+
+	// Convert from film aperture from inches to mm
+	MDistance WidthInches(C.horizontalFilmAperture(), MDistance::kInches);
+	StaticData.FilmBackWidth = static_cast<float>(WidthInches.asMillimeters());
+	MDistance HeightInches(C.verticalFilmAperture(), MDistance::kInches);
+	StaticData.FilmBackHeight = static_cast<float>(HeightInches.asMillimeters());
 }

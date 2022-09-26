@@ -23,22 +23,12 @@
 #pragma once
 
 #include "IMStreamedEntity.h"
-#include "MStreamedEntity.h"
-
-// Boilerplate for importing OpenMaya
-#if defined PLATFORM_WINDOWS
-#include "Windows/WindowsPlatformCompilerPreSetup.h"
-#else
-#include "Unix/UnixPlatformCompilerPreSetup.h"
-#endif
 
 THIRD_PARTY_INCLUDES_START
 #include <maya/MPlugArray.h>
 THIRD_PARTY_INCLUDES_END
-//#undef DWORD
 
-
-class MLiveLinkPropSubject : public IMStreamedEntity, public MStreamedEntity
+class MLiveLinkPropSubject : public IMStreamedEntity
 {
 public:
 	enum MPropStreamMode : uint16_t
@@ -49,27 +39,49 @@ public:
 
 	static MStringArray PropStreamOptions;
 
-	MLiveLinkPropSubject(const MString& InSubjectName, const MDagPath& InRootPath, 
-		MPropStreamMode InStreamMode = MPropStreamMode::RootOnly);
+	MLiveLinkPropSubject(const MString& InSubjectName,
+						 const MDagPath& InRootPath, 
+						 MPropStreamMode InStreamMode = MPropStreamMode::RootOnly);
 
-	~MLiveLinkPropSubject();
+	virtual ~MLiveLinkPropSubject();
 
 	virtual bool ShouldDisplayInUI() const override;
-	virtual MDagPath GetDagPath() const override;
+	virtual const MDagPath& GetDagPath() const override;
 	virtual MString GetNameDisplayText() const override;
 	virtual MString GetRoleDisplayText() const override;
-	virtual MString GetSubjectTypeDisplayText() const override;
+	virtual MStreamedEntity::Role GetRole() const override { return MStreamedEntity::Prop; }
+	virtual const MString& GetSubjectTypeDisplayText() const override;
 
 	virtual bool ValidateSubject() const override;
-	virtual bool RebuildSubjectData() override;
+	virtual bool RebuildSubjectData(bool ForceRelink = false) override;
 	virtual void OnStream(double StreamTime, double CurrentTime) override;
 	virtual void SetStreamType(const MString& StreamTypeIn) override;
+	void SetStreamType(const MPropStreamMode StreamTypeIn);
 	virtual int GetStreamType() const override;
+
+	virtual MString GetLinkedAsset() const override { return UnrealAssetPath; }
+	virtual MString GetTargetAsset() const override { return SavedAssetPath + MString("/") + SavedAssetName; }
+	virtual MString GetClass() const override { return UnrealAssetClass; }
+	virtual MString GetUnrealNativeClass() const override { return UnrealNativeClass; }
+
+	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) override;
+	virtual void UnlinkUnrealAsset() override;
+	virtual bool IsLinked() const override;
+
+	virtual const MVector& GetLevelSequenceRotationOffset() const override;
+
+	virtual bool IsScaleSupported() const override { return true; }
 
 private:
 	MString SubjectName;
-	MDagPath RootDagPath;
 
 	MPlugArray DynamicPlugs;
 	MPropStreamMode StreamMode;
+
+	bool bLinked;
+	MString UnrealAssetPath;
+	MString UnrealAssetClass;
+	MString SavedAssetPath;
+	MString SavedAssetName;
+	MString UnrealNativeClass;
 };

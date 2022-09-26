@@ -23,13 +23,6 @@
 #pragma once
 #include "MLiveLinkActiveCamera.h"
 
-// Boilerplate for importing OpenMaya
-#if defined PLATFORM_WINDOWS
-#include "Windows/WindowsPlatformCompilerPreSetup.h"
-#else
-#include "Unix/UnixPlatformCompilerPreSetup.h"
-#endif
-
 // Import OpenMaya headers
 THIRD_PARTY_INCLUDES_START
 #include <maya/M3dView.h>
@@ -41,7 +34,7 @@ MString MLiveLinkActiveCamera::ActiveCameraName("EditorActiveCamera");
 MLiveLinkActiveCamera::MLiveLinkActiveCamera() 
 : MLiveLinkBaseCameraSubject(ActiveCameraName) {}
 
-MDagPath MLiveLinkActiveCamera::GetDagPath() const
+const MDagPath& MLiveLinkActiveCamera::GetDagPath() const
 {
     return CurrentActiveCameraDag;
 }

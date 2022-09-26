@@ -22,6 +22,14 @@
 
 #include "MayaUnrealLiveLinkUtils.h"
 
+THIRD_PARTY_INCLUDES_START
+#include <maya/MEulerRotation.h>
+#include <maya/MFnIkJoint.h>
+#include <maya/MFnTransform.h>
+#include <maya/MMatrix.h>
+#include <maya/MQuaternion.h>
+THIRD_PARTY_INCLUDES_END
+
 void MayaUnrealLiveLinkUtils::SetMatrixRow(double* Row, MVector Vec)
 {
 	Row[0] = Vec.x;
@@ -83,6 +91,17 @@ MMatrix MayaUnrealLiveLinkUtils::GetTranslation(const MFnTransform& Joint)
 	MTransformationMatrix M;
 	M.setTranslation(Translation, G_TransformSpace);
 	return M.asMatrix();
+}
+
+void MayaUnrealLiveLinkUtils::ComputeTransformHierarchy(MObject& Node, MMatrix& MayaTransform)
+{
+	MFnTransform TransformNode(Node);
+	MayaTransform *= TransformNode.transformation().asMatrix();
+	if (TransformNode.parentCount() != 0)
+	{
+		MObject Parent = TransformNode.parent(0);
+		MayaUnrealLiveLinkUtils::ComputeTransformHierarchy(Parent, MayaTransform);
+	}
 }
 
 void MayaUnrealLiveLinkUtils::RotateCoordinateSystemForUnreal(MMatrix& InOutMatrix)
@@ -186,9 +205,8 @@ FFrameRate MayaUnrealLiveLinkUtils::GetMayaFrameRateAsUnrealFrameRate()
 
 FQualifiedFrameTime MayaUnrealLiveLinkUtils::GetMayaFrameTimeAsUnrealTime()
 {
-	auto UnrealFrameRate = GetMayaFrameRateAsUnrealFrameRate();
-	auto UnrealFrameTime = UnrealFrameRate.AsFrameTime(MAnimControl::currentTime().as(MTime::Unit::kSeconds));
-	return FQualifiedFrameTime(UnrealFrameTime, UnrealFrameRate);
+	MTime Time = MAnimControl::currentTime();
+	return FQualifiedFrameTime(static_cast<int32>(Time.as(Time.unit())), GetMayaFrameRateAsUnrealFrameRate());
 }
 
 void MayaUnrealLiveLinkUtils::OutputRotation(const MMatrix& M)
@@ -202,7 +220,7 @@ void MayaUnrealLiveLinkUtils::OutputRotation(const MMatrix& M)
 	V.X = RadToDeg(Euler[0]);
 	V.Y = RadToDeg(Euler[1]);
 	V.Z = RadToDeg(Euler[2]);
-	MGlobal::displayInfo(ConvertTCHARtoWCHAR(*V.ToString()));
+	MGlobal::displayInfo(TCHAR_TO_ANSI(*V.ToString()));
 }
 
 FString MayaUnrealLiveLinkUtils::StripMayaNamespace(const MString& InName)
@@ -240,15 +258,10 @@ MStatus MayaUnrealLiveLinkUtils::GetSelectedSubjectDagPath(MDagPath& DagPath)
 	return Status;
 }
 
-const wchar_t* MayaUnrealLiveLinkUtils::ConvertTCHARtoWCHAR(const TCHAR* string)
-{
-    return reinterpret_cast<const wchar_t*>(string);
-}
-
 // Execute the python command to refresh our UI
 void MayaUnrealLiveLinkUtils::RefreshUI()
 {
-	MGlobal::executeCommand("MayaUnrealLiveLinkRefreshUI");
+	MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkRefreshUI");
 }
 
 MString MayaUnrealLiveLinkUtils::GetMStringFromFString(const FString& String)
@@ -259,4 +272,23 @@ MString MayaUnrealLiveLinkUtils::GetMStringFromFString(const FString& String)
 FString MayaUnrealLiveLinkUtils::GetFStringFromMString(const MString& String)
 {
 	return FString(String.asChar());
+}
+
+MString MayaUnrealLiveLinkUtils::GetPlugAliasName(const MPlug& Plug, bool UseLongName)
+{
+	return Plug.partialName(false, false, false, true, false, UseLongName); // Get alias name
+}
+
+bool MayaUnrealLiveLinkUtils::AddUnique(const MDagPath& DagPath, MDagPathArray& DagPathArray)
+{
+	for (const auto& Path : DagPathArray)
+	{
+		if (DagPath == Path)
+		{
+			return false;
+		}
+	}
+
+	DagPathArray.append(DagPath);
+	return true;
 }

@@ -22,8 +22,7 @@
 
 #pragma once
 
-#include "LiveLinkProvider.h"
-#include "LiveLinkTypes.h"
+#include "MayaLiveLinkProvider.h"
 
 enum LiveLinkSource
 {
@@ -84,10 +83,35 @@ public:
 	virtual bool HasConnection() const = 0;
 
 	/** Function for managing connection status changed delegate. */
-	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) = 0;
+	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FMayaLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) = 0;
 
 	/** Function for managing connection status changed delegate. */
 	virtual void UnregisterConnStatusChangedHandle(FDelegateHandle Handle) = 0;
 
+	virtual FDelegateHandle RegisterTimeChangedReceived(const FMayaLiveLinkProviderTimeChangedReceived::FDelegate& TimeChangedReceived) { return FDelegateHandle(); }
+
+	virtual void UnregisterTimeChangedReceived(const FDelegateHandle& TimeChangedReceivedHandle) {}
+
 	virtual void EnableFileExport(bool Enable, const FString& FilePath = FString()) = 0;
+
+	virtual bool GetAssetsByClass(const FString& ClassName,
+								  bool bSearchSubClasses,
+								  TMap<FString, FStringArray>& Assets)
+	{ return false; }
+
+	virtual bool GetAssetsByParentClass(const FString& ClassName,
+										bool bSearchSubClasses,
+										const TArray<FString>& ParentClasses,
+										FStringArray& Assets,
+										FStringArray& NativeAssetClasses)
+	{ return false; }
+
+	virtual bool GetActorsByClass(const FString& ClassName,
+								  TMap<FString, FStringArray>& Actors)
+	{ return false; }
+
+	virtual bool GetAnimSequencesBySkeleton(TMap<FString, FStringArray>& Assets)
+	{ return false; }
+
+	virtual void OnTimeChanged(const FQualifiedFrameTime& FrameTime) {}
 };

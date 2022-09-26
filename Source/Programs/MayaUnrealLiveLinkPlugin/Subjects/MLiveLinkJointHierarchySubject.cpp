@@ -27,15 +27,25 @@
 #include "../MayaUnrealLiveLinkUtils.h"
 
 #include "Roles/LiveLinkAnimationTypes.h"
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
-MString CharacterStreams[2] = { "Root Only", "Full Hierarchy"};
+THIRD_PARTY_INCLUDES_START
+#include <maya/MAnimUtil.h>
+#include <maya/MDGContextGuard.h>
+#include <maya/MFnSkinCluster.h>
+#include <maya/MItDependencyNodes.h>
+THIRD_PARTY_INCLUDES_END
+
+MString CharacterStreams[2] = { "Transform", "Animation" };
 MStringArray MLiveLinkJointHierarchySubject::CharacterStreamOptions(CharacterStreams, 2);
 
 MLiveLinkJointHierarchySubject::MLiveLinkJointHierarchySubject(const MString& InSubjectName, const MDagPath& InRootPath, MCharacterStreamMode InStreamMode)
-	: MStreamedEntity(InRootPath)
-	, SubjectName(InSubjectName)
-	, RootDagPath(InRootPath)
-	, StreamMode(InStreamMode >= 0 && InStreamMode < CharacterStreamOptions.length() ? InStreamMode : MCharacterStreamMode::FullHierarchy)
+: IMStreamedEntity(InRootPath)
+, SubjectName(InSubjectName)
+, StreamMode(InStreamMode >= 0 && InStreamMode < CharacterStreamOptions.length() ? InStreamMode : MCharacterStreamMode::FullHierarchy)
+, bLinked(false)
+, StreamFullAnimSequence(false)
+, ForceLinkAsset(false)
 {}
 
 MLiveLinkJointHierarchySubject::~MLiveLinkJointHierarchySubject()
@@ -48,7 +58,7 @@ bool MLiveLinkJointHierarchySubject::ShouldDisplayInUI() const
 	return true;
 }
 
-MDagPath MLiveLinkJointHierarchySubject::GetDagPath() const
+const MDagPath& MLiveLinkJointHierarchySubject::GetDagPath() const
 {
 	return RootDagPath;
 }
@@ -63,9 +73,10 @@ MString MLiveLinkJointHierarchySubject::GetRoleDisplayText() const
 	return CharacterStreamOptions[StreamMode];
 }
 
-MString MLiveLinkJointHierarchySubject::GetSubjectTypeDisplayText() const
+const MString& MLiveLinkJointHierarchySubject::GetSubjectTypeDisplayText() const
 {
-	return MString("Character");
+	static const MString CharacterText("Character");
+	return CharacterText;
 }
 
 bool MLiveLinkJointHierarchySubject::ValidateSubject() const
@@ -88,7 +99,6 @@ bool MLiveLinkJointHierarchySubject::ValidateSubject() const
 		StatusMessage = TEXT("Other");
 	}
 
-	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Testing %s for removal Path:%s Valid:%s Status:%s\n"), SubjectName.asChar(), RootDagPath.fullPathName().asWChar(), bIsValid ? TEXT("true") : TEXT("false"), StatusMessage);
 	if (Status != MS::kFailure && bIsValid)
 	{
 		//Path checks out as valid
@@ -107,15 +117,18 @@ bool MLiveLinkJointHierarchySubject::ValidateSubject() const
 		{
 			StatusMessage = TEXT("Other");
 		}
-
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("\tTesting %s for removal Path:%s Valid:%s Status:%s\n"), SubjectName.asChar(), RootDagPath.fullPathName().asWChar(), bIsValid ? TEXT("true") : TEXT("false"), StatusMessage);
 	}
 	return bIsValid;
 }
 
-bool MLiveLinkJointHierarchySubject::RebuildSubjectData()
+bool MLiveLinkJointHierarchySubject::RebuildSubjectData(bool ForceRelink)
 {
-	bool ValidSubject = false;
+	if (IsLinked() && MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return false;
+	}
+
+	AnimCurves.clear();
 
 	if (StreamMode == MCharacterStreamMode::RootOnly)
 	{
@@ -124,73 +137,56 @@ bool MLiveLinkJointHierarchySubject::RebuildSubjectData()
 	}
 	else if (StreamMode == MCharacterStreamMode::FullHierarchy)
 	{
-		auto& SkeletonStaticData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkSkeletonStaticData>();
-
-		JointsToStream.clear();
-		CurveNames.clear();
-		DynamicPlugs.clear();
 		BlendShapeObjects.clear();
 		std::vector<MObject> SkeletonObjects;
 
-		MStatus status;
-		MItDag JointIterator;
-		JointIterator.reset(RootDagPath, MItDag::kDepthFirst, MFn::kJoint);
-
-		if (!JointIterator.isDone())
+		bool Status = false;
+		FLiveLinkBaseStaticData* BaseStaticData = nullptr;
+		if (IsLinked())
 		{
-			ValidSubject = true;
-			JointIterator.reset(RootDagPath, MItDag::kDepthFirst, MFn::kTransform);
-
-			// Build Hierarchy
-			std::vector<uint32_t> ParentIndexStack(100);
-
-			int32 Index = 0;
-
-			for (; !JointIterator.isDone(); JointIterator.next())
+			FMayaLiveLinkAnimSequenceStaticData& TimelineData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FMayaLiveLinkAnimSequenceStaticData>();
+			BaseStaticData = &TimelineData;
+			Status = BuildStaticData<FMayaLiveLinkAnimSequenceStaticData>(TimelineData, SkeletonObjects);
+			if (Status)
 			{
-				uint32_t Depth = JointIterator.depth();
-				if (Depth >= (uint32_t)ParentIndexStack.size())
-				{
-					ParentIndexStack.resize(Depth + 1);
-				}
-				ParentIndexStack[Depth] = Index++;
+				StreamFullAnimSequence = true;
 
-				int32_t ParentIndex = Depth == 0 ? -1 : ParentIndexStack[Depth - 1];
+				TimelineData.SequenceName = SavedAssetName.asChar();
+				TimelineData.SequencePath = SavedAssetPath.asChar();
+				TimelineData.LinkedAssetPath = UnrealAssetPath.asChar();
 
-				MDagPath JointPath;
-				status = JointIterator.getPath(JointPath);
-				MString JointName;
-				if (JointPath.hasFn(MFn::kJoint))
-				{
-					MFnIkJoint JointObject(JointPath);
-					JointName = JointObject.name();
-				}
-				else
-				{
-					MFnTransform JointObject(JointPath);
-					JointName = JointObject.name();
-				}
-				JointsToStream.emplace_back(MStreamHierarchy(JointName, JointPath, ParentIndex));
-				SkeletonStaticData.BoneNames.Add(*MayaUnrealLiveLinkUtils::StripMayaNamespace(JointName));
-				SkeletonStaticData.BoneParents.Add(ParentIndex);
-
-				SkeletonObjects.emplace_back(JointPath.node());
+				auto TimeUnit = MTime::uiUnit();
+				TimelineData.FrameRate = MayaUnrealLiveLinkUtils::GetMayaFrameRateAsUnrealFrameRate();
+				TimelineData.StartFrame = static_cast<int32>(MAnimControl::minTime().as(TimeUnit));
+				TimelineData.EndFrame = static_cast<int32>(MAnimControl::maxTime().as(TimeUnit));
 			}
+		}
+		else
+		{
+			auto& SkeletonStaticData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetStaticDataFromUnreal<FLiveLinkSkeletonStaticData>();
+			BaseStaticData = &SkeletonStaticData;
 
+			Status = BuildStaticData<FLiveLinkSkeletonStaticData>(SkeletonStaticData, SkeletonObjects);
+		}
+
+		if (Status && BaseStaticData)
+		{
 			// Streaming blend shapes
 			std::vector<MObject> MeshObjects;
-			MeshObjects.clear();
 
 			GetGeometrySkinnedToSkeleton(SkeletonObjects, MeshObjects);
 			AddBlendShapesWeightNameToStream(MeshObjects);
 
-			// Add custom curves to stream blendshapes curves names.
-			const auto CurveNamesLen = CurveNames.length();
-			for (unsigned int i = 0; i < CurveNamesLen; ++i)
+			if (!IsLinked())
 			{
-				const auto& Name = CurveNames[i];
-				FName CurveName(Name.asChar());
-				SkeletonStaticData.PropertyNames.Add(CurveName);
+				// Add custom curves to stream blendshapes curves names.
+				const auto CurveNamesLen = CurveNames.length();
+				for (unsigned int i = 0; i < CurveNamesLen; ++i)
+				{
+					const auto& Name = CurveNames[i];
+					FName CurveName(Name.asChar());
+					BaseStaticData->PropertyNames.Add(CurveName);
+				}
 			}
 
 			// For all the SkeletonObjects add the dynamic attribute names to StaticData
@@ -202,16 +198,160 @@ bool MLiveLinkJointHierarchySubject::RebuildSubjectData()
 				{
 					MFnAttribute Attr(Node.attribute(i));
 					auto Plug = Node.findPlug(Attr.name(), true);
-					
+
 					if (Plug.isDynamic() && Plug.isKeyable())
 					{
 						DynamicPlugs.append(Plug);
-						SkeletonStaticData.PropertyNames.Add(Attr.name().asChar());
+
+						if (!IsLinked())
+						{
+							auto Name = Attr.name();
+							BaseStaticData->PropertyNames.Add(Name.asChar());
+						}
 					}
 				}
 			}
 
-			return MayaLiveLinkStreamManager::TheOne().RebuildJointHierarchySubject(SubjectName, "FullHierarchy");
+			if (IsLinked())
+			{
+				// Add custom curves to stream blendshapes curves names.
+				auto UpdateKeyFrames = [this](const MPlug& Plug, MPlug& PlugParent)
+				{
+					// Create an empty curve
+					MAnimCurve Curve;
+					MString Name = MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug);
+					auto AnimCurveIter = AnimCurves.emplace(Name.asChar(), std::move(Curve)).first;
+
+					// Read the keyframes
+					MObjectArray Curves;
+					MAnimUtil::findAnimation(Plug, Curves);
+					if (Curves.length() != 0)
+					{
+						OnAnimKeyframeEdited(Name, Curves[0], PlugParent);
+					}
+					else
+					{
+						auto& Frame = AnimCurveIter->second.FindOrAddKeyFrame(0.0, true);
+						Frame.Value = Plug.asDouble();
+					}
+				};
+
+				// Update blend shapes
+				for (auto& BlendShapeObject : BlendShapeObjects)
+				{
+					MFnBlendShapeDeformer BlendShape(BlendShapeObject);
+					MPlug Plug = BlendShape.findPlug("weight", false);
+
+					if (!Plug.isNull())
+					{
+						if (Plug.isArray())
+						{
+							// Get the value of each weight and insert it in the index corresponding to the curve we want to stream
+							for (unsigned int IdxWeight = 0; IdxWeight < Plug.numElements(); IdxWeight++)
+							{
+								const auto& PlugElement = Plug[IdxWeight];
+								UpdateKeyFrames(PlugElement, Plug);
+							}
+						}
+						else
+						{
+							UpdateKeyFrames(Plug, Plug);
+						}
+					}
+				}
+
+				// Update custom attributes
+				for (unsigned int PlugIndex = 0; PlugIndex < DynamicPlugs.length(); ++PlugIndex)
+				{
+					auto& Plug = DynamicPlugs[PlugIndex];
+
+					if (!Plug.isNull())
+					{
+						UpdateKeyFrames(Plug, Plug);
+					}
+				}
+			}
+
+			if (IsLinked())
+			{
+				BaseStaticData->PropertyNames.Empty();
+				MayaLiveLinkStreamManager::TheOne().RebuildAnimSequenceSubject(SubjectName);
+			}
+			else
+			{
+				Status = MayaLiveLinkStreamManager::TheOne().RebuildJointHierarchySubject(SubjectName, "FullHierarchy");
+			}
+		}
+		return Status;
+	}
+
+	return false;
+}
+
+template<typename T>
+bool MLiveLinkJointHierarchySubject::BuildStaticData(T& AnimationData,
+													 std::vector<MObject>& SkeletonObjects)
+{
+	JointsToStream.clear();
+	CurveNames.clear();
+	DynamicPlugs.clear();
+
+	MItDag JointIterator;
+	JointIterator.reset(RootDagPath, MItDag::kDepthFirst, MFn::kJoint);
+
+	bool ValidSubject = false;
+	if (!JointIterator.isDone())
+	{
+		MStatus Status;
+
+		ValidSubject = true;
+		JointIterator.reset(RootDagPath, MItDag::kDepthFirst, MFn::kTransform);
+
+		// Build Hierarchy
+		std::vector<uint32_t> ParentIndexStack(100);
+
+		int32 Index = 0;
+
+		for (; !JointIterator.isDone(); JointIterator.next())
+		{
+			MDagPath JointPath;
+			Status = JointIterator.getPath(JointPath);
+			MString JointName;
+			bool Valid = false;
+			if (JointPath.hasFn(MFn::kJoint))
+			{
+				MFnIkJoint JointObject(JointPath);
+				JointName = TCHAR_TO_ANSI(*MayaUnrealLiveLinkUtils::StripMayaNamespace(JointObject.name()));
+				Valid = true;
+			}
+			else if ((JointIterator.currentItem().apiType() == MFn::kTransform && !JointPath.hasFn(MFn::kShape)) ||
+					 JointPath.hasFn(MFn::kMesh) ||
+					 JointPath.hasFn(MFn::kIkHandle) ||
+					 JointPath.hasFn(MFn::kLocator) ||
+					 JointPath.hasFn(MFn::kDistance))
+			{
+				MFnTransform JointObject(JointPath);
+				JointName = JointObject.name();
+				Valid = true;
+			}
+
+			if (Valid)
+			{
+				uint32_t Depth = JointIterator.depth();
+				if (Depth >= ParentIndexStack.size())
+				{
+					ParentIndexStack.resize(Depth + 1);
+				}
+				ParentIndexStack[Depth] = Index++;
+
+				int32_t ParentIndex = Depth == 0 ? -1 : ParentIndexStack[Depth - 1];
+
+				JointsToStream.emplace_back(MStreamHierarchy(JointName, JointPath, ParentIndex));
+				AnimationData.BoneNames.Add(*MayaUnrealLiveLinkUtils::StripMayaNamespace(JointName));
+				AnimationData.BoneParents.Add(ParentIndex);
+
+				SkeletonObjects.emplace_back(JointPath.node());
+			}
 		}
 	}
 
@@ -299,7 +439,7 @@ void MLiveLinkJointHierarchySubject::AddBlendShapesWeightNameToStream(const std:
 				{
 					for (unsigned int IdxWeight = 0; IdxWeight < Plug.numElements(); IdxWeight++)
 					{
-						MString WeightName = GetPlugAliasName(Plug[IdxWeight]);
+						MString WeightName = MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug[IdxWeight]);
 
 						bool CurveFound = false;
 						for (unsigned int i = 0; i < CurveNamesLen; ++i)
@@ -323,13 +463,13 @@ void MLiveLinkJointHierarchySubject::AddBlendShapesWeightNameToStream(const std:
 	}
 }
 
-MString MLiveLinkJointHierarchySubject::GetPlugAliasName(const MPlug& Plug)
-{
-	return Plug.partialName(false, false, false, true, false, false); // Get alias name
-}
-
 void MLiveLinkJointHierarchySubject::OnStream(double StreamTime, double CurrentTime)
 {
+	if (IsLinked() && MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return;
+	}
+
 	auto SceneTime = MayaUnrealLiveLinkUtils::GetMayaFrameTimeAsUnrealTime();
 
 	if (StreamMode == MCharacterStreamMode::RootOnly)
@@ -348,109 +488,212 @@ void MLiveLinkJointHierarchySubject::OnStream(double StreamTime, double CurrentT
 	}
 	else if (StreamMode == MCharacterStreamMode::FullHierarchy)
 	{
-		auto& AnimFrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkAnimationFrameData>();
-		AnimFrameData.WorldTime = StreamTime;
-		AnimFrameData.MetaData.SceneTime = SceneTime;
-		AnimFrameData.Transforms.Reserve(JointsToStream.size());
-
+		const auto JointsToStreamLen = JointsToStream.size();
 		std::vector<MMatrix> InverseScales;
-		InverseScales.reserve(JointsToStream.size());
+		InverseScales.reserve(JointsToStreamLen);
 
-		for (int Idx = 0; Idx < JointsToStream.size(); ++Idx)
+		if (IsLinked())
 		{
-			const MStreamHierarchy& H = JointsToStream[Idx];
-
-			const MFnTransform& TransformObject = H.IsTransform ? H.TransformObject : H.JointObject;
-
-			MTransformationMatrix::RotationOrder RotOrder = TransformObject.rotationOrder();
-
-			MMatrix JointScale = MayaUnrealLiveLinkUtils::GetScale(TransformObject);
-			InverseScales.emplace_back(JointScale.inverse());
-
-			MMatrix ParentInverseScale = (H.ParentIndex == -1) ? MMatrix::identity : InverseScales[H.ParentIndex];
-
-			MMatrix MayaSpaceJointMatrix;
-			if (!H.IsTransform)
+			auto ReserveLambda = [](FMayaLiveLinkAnimSequenceFrameData& AnimationData, int FrameStartIndex, int NumFrames, int NumTransforms)
 			{
-				MayaSpaceJointMatrix = JointScale *
-					MayaUnrealLiveLinkUtils::GetRotationOrientation(H.JointObject, RotOrder) *
-					MayaUnrealLiveLinkUtils::GetRotation(TransformObject, RotOrder) *
-					MayaUnrealLiveLinkUtils::GetJointOrientation(H.JointObject, RotOrder) *
-					ParentInverseScale *
-					MayaUnrealLiveLinkUtils::GetTranslation(TransformObject);
+				if (NumFrames > 0)
+				{
+					AnimationData.StartFrame = FrameStartIndex;
+					AnimationData.Frames.Reserve(NumFrames);
+					for (int Index = 0; Index < NumFrames; ++Index, ++FrameStartIndex)
+					{
+						FMayaLiveLinkAnimSequenceFrame Frame;
+						Frame.Locations.Reserve(NumTransforms);
+						Frame.Rotations.Reserve(NumTransforms);
+						Frame.Scales.Reserve(NumTransforms);
+						AnimationData.Frames.Emplace(MoveTemp(Frame));
+					}
+				}
+			};
+			auto AddLambda = [](FMayaLiveLinkAnimSequenceFrameData& AnimationData, int FrameIndex, const FTransform& Transform)
+			{
+				auto& Frame = AnimationData.Frames[FrameIndex];
+				Frame.Locations.Add(Transform.GetLocation());
+				Frame.Rotations.Add(Transform.GetRotation());
+				Frame.Scales.Add(Transform.GetScale3D());
+			};
+
+			auto InitializeAndStreamFrameData = [this](FMayaLiveLinkAnimSequenceFrameData& AnimationData, double StreamTime)
+			{
+				InitializeFrameData(AnimationData, MAnimControl::minTime().as(MTime::uiUnit()));
+				AnimationData.PropertyValues.Empty();
+				AnimationData.WorldTime = StreamTime;
+				AnimCurves.clear();
+				MayaLiveLinkStreamManager::TheOne().OnStreamAnimSequenceSubject(SubjectName);
+			};
+
+			auto StartFrame = MAnimControl::minTime();
+			auto EndFrame = MAnimControl::maxTime();
+			const int NumberOfFrames = static_cast<int>((EndFrame - StartFrame).as(MTime::uiUnit())) + 1;
+			if (StreamFullAnimSequence)
+			{
+				FMayaLiveLinkAnimSequenceFrameData& AnimationData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FMayaLiveLinkAnimSequenceFrameData>();
+
+				int NumberOfFramesToReserve = NumberOfFrames;
+				auto MayaTime = StartFrame;
+				int LastPercentage = -1;
+				for (int Index = 0; Index < NumberOfFrames; ++Index, MayaTime += 1)
+				{
+					MDGContext timeContext(MayaTime);
+					MDGContextGuard ContextGuard(timeContext);
+					ReserveLambda(AnimationData, 0, NumberOfFramesToReserve, JointsToStreamLen);
+					BuildFrameData<FMayaLiveLinkAnimSequenceFrameData>(AnimationData, AddLambda, InverseScales, Index);
+
+					// Reserve memory only on the first frame
+					NumberOfFramesToReserve = -1;
+
+					MayaLiveLinkStreamManager::TheOne().UpdateProgressBar(Index, NumberOfFrames, LastPercentage);
+
+					InverseScales.clear();
+				}
+
+				// TODO: need to optimize using the anim cache playback telling which frames changed instead
+				StreamFullAnimSequence = false;
+
+				InitializeAndStreamFrameData(AnimationData, StreamTime);
 			}
 			else
 			{
-				MayaSpaceJointMatrix = JointScale *
-					MayaUnrealLiveLinkUtils::GetRotation(TransformObject, RotOrder) *
-					ParentInverseScale *
-					MayaUnrealLiveLinkUtils::GetTranslation(TransformObject);
-			}
+				FMayaLiveLinkAnimSequenceFrameData& AnimationData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FMayaLiveLinkAnimSequenceFrameData>();
 
-			if (Idx == 0 && MGlobal::isYAxisUp()) // rotate the root joint to get the correct character rotation in Unreal
-			{
-				MayaUnrealLiveLinkUtils::RotateCoordinateSystemForUnreal(MayaSpaceJointMatrix);
-			}
-
-			AnimFrameData.Transforms.Add(MayaUnrealLiveLinkUtils::BuildUETransformFromMayaTransform(MayaSpaceJointMatrix));
-		}
-
-		//streaming blend shapes
-		TArray<float> CurvesValue;
-		CurvesValue.Init(0.0f, CurveNames.length());
-
-		// Iterate through the objects associate with the character that has blend shape on it
-		for (int IdxBlendShapeObj = 0; IdxBlendShapeObj < BlendShapeObjects.size(); IdxBlendShapeObj++)
-		{
-			if (!BlendShapeObjects[IdxBlendShapeObj].isNull())
-			{
-				MFnBlendShapeDeformer BlendShape(BlendShapeObjects[IdxBlendShapeObj]);
-
-				// Get the weight of the blend shape.
-				MPlug Plug = BlendShape.findPlug("weight", false);
-
-				if (!Plug.isNull() && Plug.isArray())
+				int Index = static_cast<int>(MAnimControl::currentTime().as(MTime::uiUnit())) - StartFrame.as(MTime::uiUnit());
+				if (Index < 0 || Index >= NumberOfFrames)
 				{
-					// Get the value of each weight and insert it in the index corresponding to the curve we want to stream
-					for (unsigned int IdxWeight = 0; IdxWeight < Plug.numElements(); IdxWeight++)
-					{
-						MString WeightName = GetPlugAliasName(Plug[IdxWeight]);
-						unsigned int IndexFind = 0;
-						for (unsigned int i = 0; i < CurveNames.length(); i++)
-						{
-							if (CurveNames[i] == WeightName)
-							{
-								IndexFind = i;
-							}
-						}
+					return;
+				}
 
-						if (IndexFind >= 0 && IndexFind < CurveNames.length())
+				ReserveLambda(AnimationData, Index, 1, JointsToStreamLen);
+				BuildFrameData<FMayaLiveLinkAnimSequenceFrameData>(AnimationData, AddLambda, InverseScales, 0);
+				InitializeAndStreamFrameData(AnimationData, StreamTime);
+			}
+		}
+		else
+		{
+			auto& AnimFrameData = MayaLiveLinkStreamManager::TheOne().InitializeAndGetFrameDataFromUnreal<FLiveLinkAnimationFrameData>();
+
+			auto ReserveLambda = [](FLiveLinkAnimationFrameData& AnimationData, int Num)
+			{
+				AnimationData.Transforms.Reserve(Num);
+			};
+			auto AddLambda = [](FLiveLinkAnimationFrameData& AnimationData, int, const FTransform& Transform)
+			{
+				AnimationData.Transforms.Add(Transform);
+			};
+			ReserveLambda(AnimFrameData, JointsToStreamLen);
+			BuildFrameData<FLiveLinkAnimationFrameData>(AnimFrameData, AddLambda, InverseScales, 0);
+
+			//streaming blend shapes
+			TArray<float> CurvesValue;
+			CurvesValue.Init(0.0f, CurveNames.length());
+
+			// Iterate through the objects associate with the character that has blend shape on it
+			for (int IdxBlendShapeObj = 0; IdxBlendShapeObj < BlendShapeObjects.size(); IdxBlendShapeObj++)
+			{
+				if (!BlendShapeObjects[IdxBlendShapeObj].isNull())
+				{
+					MFnBlendShapeDeformer BlendShape(BlendShapeObjects[IdxBlendShapeObj]);
+
+					// Get the weight of the blend shape.
+					MPlug Plug = BlendShape.findPlug("weight", false);
+
+					if (!Plug.isNull() && Plug.isArray())
+					{
+						// Get the value of each weight and insert it in the index corresponding to the curve we want to stream
+						for (unsigned int IdxWeight = 0; IdxWeight < Plug.numElements(); IdxWeight++)
 						{
-							float WeightValue;
-							Plug[IdxWeight].getValue(WeightValue);
-							CurvesValue[IndexFind] = WeightValue;
+							MString WeightName = MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug[IdxWeight]);
+							unsigned int IndexFind = 0;
+							for (unsigned int i = 0; i < CurveNames.length(); i++)
+							{
+								if (CurveNames[i] == WeightName)
+								{
+									IndexFind = i;
+									break;
+								}
+							}
+
+							if (IndexFind >= 0 && IndexFind < CurveNames.length())
+							{
+								float WeightValue;
+								Plug[IdxWeight].getValue(WeightValue);
+								CurvesValue[IndexFind] = WeightValue;
+							}
 						}
 					}
 				}
+				else
+				{
+					IdxBlendShapeObj--;
+					BlendShapeObjects.erase(BlendShapeObjects.cbegin()+IdxBlendShapeObj);
+				}
 			}
-			else
+
+			// Add custom curves value to stream blend shapes.
+			AnimFrameData.PropertyValues.Append(CurvesValue);
+
+			// Add the dynamic plug values as property values in AnimeFrameData
+			for (unsigned int i = 0; i < DynamicPlugs.length(); ++i)
 			{
-				IdxBlendShapeObj--;
-				BlendShapeObjects.erase(BlendShapeObjects.cbegin()+IdxBlendShapeObj);
+				auto& Plug = DynamicPlugs[i];
+				AnimFrameData.PropertyValues.Add(Plug.asFloat());
 			}
+
+			AnimFrameData.WorldTime = StreamTime;
+			AnimFrameData.MetaData.SceneTime = SceneTime;
+			MayaLiveLinkStreamManager::TheOne().OnStreamJointHierarchySubject(SubjectName, "FullHierarchy");
 		}
+	}
+}
 
-		// Add custom curves value to stream blend shapes.
-		AnimFrameData.PropertyValues.Append(CurvesValue);
+template<typename T, typename F>
+void MLiveLinkJointHierarchySubject::BuildFrameData(T& AnimationData,
+													F& AddLambda,
+													std::vector<MMatrix>& InverseScales,
+													int FrameIndex)
+{
+	const auto JointsToStreamLen = JointsToStream.size();
+	for (uint32_t Idx = 0; Idx < JointsToStreamLen; ++Idx)
+	{
+		const MStreamHierarchy& H = JointsToStream[Idx];
 
-		// Add the dynamic plug values as property values in AnimaFrameData
-		for (unsigned int i = 0; i < DynamicPlugs.length(); ++i)
+		const MFnTransform& TransformObject = H.IsTransform ? H.TransformObject : H.JointObject;
+
+		MTransformationMatrix::RotationOrder RotOrder = TransformObject.rotationOrder();
+
+		MMatrix JointScale = MayaUnrealLiveLinkUtils::GetScale(TransformObject);
+		InverseScales.emplace_back(JointScale.inverse());
+
+		MMatrix ParentInverseScale = (H.ParentIndex == -1) ? MMatrix::identity : InverseScales[H.ParentIndex];
+
+		MMatrix MayaSpaceJointMatrix;
+		if (!H.IsTransform)
 		{
-			auto& Plug = DynamicPlugs[i];
-			AnimFrameData.PropertyValues.Add(Plug.asFloat());
+			MayaSpaceJointMatrix = JointScale *
+				MayaUnrealLiveLinkUtils::GetRotationOrientation(H.JointObject, RotOrder) *
+				MayaUnrealLiveLinkUtils::GetRotation(TransformObject, RotOrder) *
+				MayaUnrealLiveLinkUtils::GetJointOrientation(H.JointObject, RotOrder) *
+				ParentInverseScale *
+				MayaUnrealLiveLinkUtils::GetTranslation(TransformObject);
+		}
+		else
+		{
+			MayaSpaceJointMatrix = JointScale *
+				MayaUnrealLiveLinkUtils::GetRotation(TransformObject, RotOrder) *
+				ParentInverseScale *
+				MayaUnrealLiveLinkUtils::GetTranslation(TransformObject);
 		}
 
-		MayaLiveLinkStreamManager::TheOne().OnStreamJointHierarchySubject(SubjectName, "FullHierarchy");
+		if (Idx == 0 && MGlobal::isYAxisUp()) // rotate the root joint to get the correct character rotation in Unreal
+		{
+			MayaUnrealLiveLinkUtils::RotateCoordinateSystemForUnreal(MayaSpaceJointMatrix);
+		}
+
+		AddLambda(AnimationData, FrameIndex, MayaUnrealLiveLinkUtils::BuildUETransformFromMayaTransform(MayaSpaceJointMatrix));
 	}
 }
 
@@ -460,14 +703,284 @@ void MLiveLinkJointHierarchySubject::SetStreamType(const MString& StreamTypeIn)
 	{
 		if (CharacterStreamOptions[StreamTypeIdx] == StreamTypeIn && StreamMode != (MCharacterStreamMode)StreamTypeIdx)
 		{
-			StreamMode = (MCharacterStreamMode)StreamTypeIdx;
-			RebuildSubjectData();
+			SetStreamType(static_cast<MCharacterStreamMode>(StreamTypeIdx));
 			return;
 		}
 	}
 }
 
+void MLiveLinkJointHierarchySubject::SetStreamType(MCharacterStreamMode StreamModeIn)
+{
+	StreamMode = StreamModeIn;
+	if (StreamModeIn != MCharacterStreamMode::FullHierarchy)
+	{
+		UnrealAssetPath.clear();
+		SavedAssetPath.clear();
+		SavedAssetName.clear();
+	}
+	RebuildSubjectData();
+}
+
 int MLiveLinkJointHierarchySubject::GetStreamType() const
 {
 	return StreamMode;
+}
+
+void MLiveLinkJointHierarchySubject::OnAttributeChanged(const MObject& Object, const MPlug& Plug, const MPlug& OtherPlug)
+{
+	if (Object.isNull())
+	{
+		return;
+	}
+
+	if (!IsLinked() || MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return;
+	}
+
+	bool bSendEvent = false;
+	MPlug ResolvedPlug;
+	MObject ResolvedObject;
+	if (Object.hasFn(MFn::kTransform))
+	{
+		MPlugArray SrcPlugArray;
+		Plug.connectedTo(SrcPlugArray, false, true);
+		for (unsigned int j = 0; j < SrcPlugArray.length() && !bSendEvent; ++j)
+		{
+			MPlug& SrcPlug = SrcPlugArray[j];
+			MPlugArray SrcPlugArray2;
+			SrcPlug.connectedTo(SrcPlugArray2, false, true);
+			for (unsigned int k = 0; k < SrcPlugArray2.length(); ++k)
+			{
+				MPlug& SrcPlug2 = SrcPlugArray2[k];
+				if (SrcPlug2.node().hasFn(MFn::kBlendShape))
+				{
+					ResolvedObject = SrcPlug2.node();
+					ResolvedPlug = SrcPlug2;
+					bSendEvent = true;
+					break;
+				}
+			}
+		}
+	}
+	else if (Object.hasFn(MFn::kBlendShape) || Object.hasFn(MFn::kHikIKEffector))
+	{
+		ResolvedPlug = Plug;
+		ResolvedObject = Object;
+		bSendEvent = true;
+	}
+
+	if (bSendEvent)
+	{
+		StreamFullAnimSequence = false;
+
+		MObjectArray AnimationCurves;
+
+		// Find the animation curve(s) that animate this plug
+		bool HasAnimatedCurves = MAnimUtil::findAnimation(ResolvedPlug, AnimationCurves);
+
+		MObjectArray ObjectArray;
+		unsigned int numAnimCurves = AnimationCurves.length();
+		for (unsigned int Curve = 0; Curve < numAnimCurves; ++Curve)
+		{
+			ObjectArray.append(AnimationCurves[Curve]);
+		}
+
+		// Notify that we want to send these anim curves
+		MObject InvalidObject;
+		OnAnimCurveEdited(MayaUnrealLiveLinkUtils::GetPlugAliasName(ResolvedPlug),
+						  HasAnimatedCurves && ObjectArray.length() != 0 ? ObjectArray[0] : InvalidObject,
+						  ResolvedPlug);
+	}
+
+	IMStreamedEntity::OnAttributeChanged(ResolvedObject, ResolvedPlug, OtherPlug);
+}
+
+void MLiveLinkJointHierarchySubject::OnAnimCurveEdited(const MString& AnimCurveNameIn, MObject& AnimCurveObject, const MPlug& Plug, double ConversionFactor)
+{
+	if (!IsLinked() || MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return;
+	}
+
+	// An invalid anim curve usually refers to a custom attribute/blend shape with no associated anim curve
+	// Still stream the value to maintain the original behavior when not linked to an Unreal asset.
+	if (AnimCurveObject.isNull())
+	{
+		MStreamedEntity::OnAnimCurveEdited(AnimCurveNameIn, AnimCurveObject, Plug);
+
+		// Also update connected plugs
+		MObject InvalidObject;
+		auto UpdateConnectedPlugs = [this, &InvalidObject](MPlugArray& PlugArray)
+		{
+			for (unsigned int i = 0; i < PlugArray.length(); ++i)
+			{
+				MPlug& ConnectedPlug = PlugArray[i];
+				MObject Object = ConnectedPlug.node();
+				if (Object.hasFn(MFn::kBlendShape))
+				{
+					MStreamedEntity::OnAnimCurveEdited(MayaUnrealLiveLinkUtils::GetPlugAliasName(ConnectedPlug),
+													   InvalidObject,
+													   ConnectedPlug);
+				}
+			}
+		};
+
+		MPlugArray PlugArray;
+		Plug.connectedTo(PlugArray, false, true);
+		UpdateConnectedPlugs(PlugArray);
+
+		PlugArray.clear();
+		Plug.connectedTo(PlugArray, true, false);
+		UpdateConnectedPlugs(PlugArray);
+	}
+}
+
+void MLiveLinkJointHierarchySubject::OnAnimKeyframeEdited(const MString& MayaAnimCurveName, MObject& AnimCurveObject, const MPlug& Plug)
+{
+	if (!IsLinked() || MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return;
+	}
+
+	if (Plug.isNull())
+	{
+		return;
+	}
+	
+	MString AnimCurveName(MayaAnimCurveName);
+	if (!Plug.node().hasFn(MFn::kBlendShape))
+	{
+		// Check if the plug is a custom attribute
+		bool Found = false;
+		for( const auto& DynamicPlug : DynamicPlugs)
+		{
+			if (DynamicPlug == Plug)
+			{
+				AnimCurveName = MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug);
+				Found = true;
+				break;
+			}
+		}
+
+		// We want to stream everything else other than blend shapes and custom attributes.
+		if (!Found)
+		{
+			StreamFullAnimSequence = true;
+			return;
+		}
+	}
+
+	// Create or clear the anim curve
+	auto AnimCurveIter = AnimCurves.find(AnimCurveName.asChar());
+	if (AnimCurveIter != AnimCurves.end())
+	{
+		AnimCurveIter->second.KeyFrames.clear();
+	}
+	else
+	{
+		MAnimCurve Curve;
+		AnimCurveIter = AnimCurves.emplace(AnimCurveName.asChar(), std::move(Curve)).first;
+	}
+
+	MAnimCurve& AnimCurve = AnimCurveIter->second;
+
+	UpdateAnimCurveKeys(AnimCurveObject, AnimCurve);
+
+	// Also update connected plugs
+	auto CopyAnimCurve = [this, &AnimCurve](MPlugArray& PlugArray)
+	{
+		for( const auto& ConnectedPlug : PlugArray)
+		{
+			MString ConnectedCurveName(MayaUnrealLiveLinkUtils::GetPlugAliasName(ConnectedPlug));
+
+			auto CurveIter = AnimCurves.find(ConnectedCurveName.asChar());
+			if (CurveIter != AnimCurves.end())
+			{
+				CurveIter->second.KeyFrames.clear();
+			}
+			else
+			{
+				MAnimCurve Curve;
+				CurveIter = AnimCurves.emplace(ConnectedCurveName.asChar(), std::move(Curve)).first;
+			}
+
+			CurveIter->second = AnimCurve;
+		}
+	};
+
+	MPlugArray PlugArray;
+	Plug.connectedTo(PlugArray, false, true);
+	CopyAnimCurve(PlugArray);
+
+	PlugArray.clear();
+	Plug.connectedTo(PlugArray, true, false);
+	CopyAnimCurve(PlugArray);
+}
+
+void MLiveLinkJointHierarchySubject::LinkUnrealAsset(const LinkAssetInfo& LinkInfo)
+{
+	if (!bLinked ||
+		(bLinked &&
+		 (LinkInfo.UnrealAssetPath != UnrealAssetPath ||
+		  LinkInfo.SavedAssetPath != SavedAssetPath ||
+		  LinkInfo.SavedAssetName != SavedAssetName)) ||
+		ForceLinkAsset)
+	{
+		UnrealAssetPath = LinkInfo.UnrealAssetPath;
+		SavedAssetPath = LinkInfo.SavedAssetPath;
+		SavedAssetName = LinkInfo.SavedAssetName;
+
+		if (!LinkInfo.bSetupOnly && !MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+		{
+			bLinked = true;
+
+			RebuildSubjectData();
+
+			// Wait a bit after rebuilding the subject data before sending the frame data to Unreal.
+			// Otherwise, Unreal will ignore it.
+			using namespace std::chrono_literals;
+			std::this_thread::sleep_for(100ms);
+
+			if (!ForceLinkAsset)
+			{
+				OnStreamCurrentTime();
+			}
+		}
+	}
+}
+
+void MLiveLinkJointHierarchySubject::UnlinkUnrealAsset()
+{
+	bLinked = false;
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(true);
+	SetStreamType(StreamMode);
+	OnStreamCurrentTime();
+	FUnrealStreamManager::TheOne().UpdateWhenDisconnected(false);
+}
+
+void MLiveLinkJointHierarchySubject::OnTimeUnitChanged()
+{
+	if (!IsLinked() || MayaLiveLinkStreamManager::TheOne().IsAnimSequenceStreamingPaused())
+	{
+		return;
+	}
+
+	ForceLinkAsset = true;
+	IMStreamedEntity::LinkAssetInfo LinkInfo;
+	LinkInfo.UnrealAssetPath = UnrealAssetPath;
+	LinkInfo.UnrealAssetClass = MString("");
+	LinkInfo.SavedAssetPath = SavedAssetPath;
+	LinkInfo.SavedAssetName = SavedAssetName;
+	LinkInfo.UnrealNativeClass = MString("Skeleton");
+	LinkUnrealAsset(LinkInfo);
+	ForceLinkAsset = false;
+}
+
+bool MLiveLinkJointHierarchySubject::IsLinked() const
+{
+	return bLinked &&
+		   (UnrealAssetPath.length() ||
+		    SavedAssetPath.length() ||
+		    SavedAssetName.length());
 }

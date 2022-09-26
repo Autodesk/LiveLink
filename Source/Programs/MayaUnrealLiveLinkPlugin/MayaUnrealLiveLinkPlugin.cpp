@@ -22,50 +22,47 @@
 
 
 #include "RequiredProgramMainCPPInclude.h"
-#include "Misc/CommandLine.h"
-#include "Async/TaskGraphInterfaces.h"
-#include "Features/IModularFeatures.h"
+
 #include "INetworkMessagingExtension.h"
+#include "MayaLiveLinkInterface.h"
+
+#include "Features/IModularFeatures.h"
+
 #include "Interfaces/IPv4/IPv4Endpoint.h"
-#include "Modules/ModuleManager.h"
+
 #include "Shared/UdpMessagingSettings.h"
-#include "UObject/Object.h"
-#include "Misc/ConfigCacheIni.h"
 
-#include "Roles/LiveLinkAnimationRole.h"
-#include "Roles/LiveLinkAnimationTypes.h"
-#include "Roles/LiveLinkCameraRole.h"
-#include "Roles/LiveLinkCameraTypes.h"
-#include "Roles/LiveLinkLightRole.h"
-#include "Roles/LiveLinkLightTypes.h"
-#include "Roles/LiveLinkTransformRole.h"
-#include "Roles/LiveLinkTransformTypes.h"
-#include "LiveLinkProvider.h"
-#include "LiveLinkRefSkeleton.h"
-#include "LiveLinkTypes.h"
-#include "Misc/OutputDevice.h"
-
-#include "UnrealInitializer/UnrealInitializer.h"
-#include "CoreMinimal.h"
 #include "UnrealInitializer/FUnrealStreamManager.h"
+#include "UnrealInitializer/UnrealInitializer.h"
 
-#include <cstdlib>
-#include <set>
+#include <thread>
 
 IMPLEMENT_APPLICATION(MayaUnrealLiveLinkPlugin, "MayaUnrealLiveLinkPlugin");
 
-#include "MayaCommonIncludes.h"
-#include "Subjects/IMStreamedEntity.h"
-#include "Subjects/MStreamHierarchy.h"
-#include "Subjects/MStreamedEntity.h"
-#include "MayaUnrealLiveLinkUtils.h"
-#include "MayaLiveLinkStreamManager.h"
-
 THIRD_PARTY_INCLUDES_START
 #include <maya/MAnimMessage.h>
-#ifndef MAYA_OLD_PLUGIN
+#include <maya/MArgDatabase.h>
+#include <maya/MArgList.h>
+#include <maya/MAnimUtil.h>
 #include <maya/MCameraMessage.h>
-#endif // MAYA_OLD_PLUGIN
+#include <maya/M3dView.h>
+#include <maya/MDagMessage.h>
+#include <maya/MDagPathArray.h>
+#include <maya/MDGMessage.h>
+#include <maya/MDistance.h>
+#include <maya/MEventMessage.h>
+#include <maya/MSceneMessage.h>
+#include <maya/MTimerMessage.h>
+#include <maya/MUiMessage.h>
+#include <maya/MFnAttribute.h>
+#include <maya/MFnBlendShapeDeformer.h>
+#include <maya/MFnCamera.h>
+#include <maya/MFnKeyframeDelta.h>
+#include <maya/MFnPlugin.h>
+#include <maya/MFnMotionPath.h>
+#include <maya/MObjectArray.h>
+#include <maya/MPxCommand.h>
+#include <maya/MSyntax.h>
 THIRD_PARTY_INCLUDES_END
 
 #define MCHECKERROR(STAT,MSG)	\
@@ -81,6 +78,7 @@ THIRD_PARTY_INCLUDES_END
 
 class FLiveLinkStreamedSubjectManager;
 
+void OnTimeChangedReceived(const FQualifiedFrameTime& Time);
 void ClearViewportCallbacks();
 MStatus RefreshViewportCallbacks();
 
@@ -88,36 +86,67 @@ MCallbackIdArray myCallbackIds;
 
 MSpace::Space G_TransformSpace = MSpace::kTransform;
 
-bool bUEInitialized = false;
+static bool PreviousConnectionStatus = false;
+static bool ChangeTimeDone = true;
+static bool IgnoreAllDagChangesCallback = false;
 
-const char PluginVersion[] = "v1.1.2";
+// PluginVersion definition has been moved to MayaLiveLinkInterface.cpp
+static std::string PluginVersion;
 const char PluginAppId[] = "3726213941804942083";
 
 static const char OtherUEVersionLoadedEnvVar[] = "OtherUEVersionLoaded";
 
-// Execute the python command to refresh our UI
-void RefreshUI()
+void RebuildStreamSubjects(void* ClientData)
 {
-	MGlobal::executeCommand("MayaUnrealLiveLinkRefreshUI");
+	auto& LiveLinkStreamManager = MayaLiveLinkStreamManager::TheOne();
+	if (PreviousConnectionStatus)
+	{
+		LiveLinkStreamManager.RebuildSubjects(false, true);
+
+		// Wait a bit after rebuilding the subject data before sending the curve data to Unreal.
+		// Otherwise, Unreal will ignore it.
+		using namespace std::chrono_literals;
+		std::this_thread::sleep_for(100ms);
+
+		LiveLinkStreamManager.StreamSubjects();
+	}
 }
 
 void OnConnectionStatusChanged()
 {
-	MGlobal::executeCommand("MayaUnrealLiveLinkRefreshConnectionUI");
+	auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+	if (LiveLinkProvider.IsValid())
+	{
+		const bool bHasConnection = LiveLinkProvider->HasConnection();
+		if (PreviousConnectionStatus != bHasConnection)
+		{
+			MGlobal::executeCommand("MayaUnrealLiveLinkRefreshConnectionUI");
+
+			PreviousConnectionStatus = bHasConnection;
+
+			if (bHasConnection)
+			{
+				MGlobal::executeTaskOnIdle(RebuildStreamSubjects, nullptr, MGlobal::kVeryLowIdlePriority);
+			}
+		}
+	}		
 }
 
-void PrintInfoToMaya(const char* Info)
+void PrintInfoToMaya(const char* Info, int Severity)
 {
-	MGlobal::displayInfo(Info);
-}
-
-inline void FTickerTick(float ElapsedTime)
-{
-#if !UE_5_0_OR_LATER
-	FTicker::GetCoreTicker().Tick(ElapsedTime);
-#else
-	FTSTicker::GetCoreTicker().Tick(ElapsedTime);
-#endif // UE_5_0_OR_LATER
+	switch (Severity)
+	{
+		default:
+		case 0:
+			MGlobal::displayInfo(Info);
+			break;
+		case 1:
+			MGlobal::displayWarning(Info);
+			break;
+		case 2:
+			MGlobal::displayError(Info);
+			break;
+	}
 }
 
 void PutEnv(const char* EnvString, const char* EnvValue)
@@ -125,10 +154,7 @@ void PutEnv(const char* EnvString, const char* EnvValue)
 	if (EnvString && EnvValue)
 	{
 #if PLATFORM_WINDOWS
-		auto CombinedString = std::string(EnvString);
-		CombinedString += "=";
-		CombinedString += EnvValue;
-		_putenv(CombinedString.c_str());
+		_putenv_s(EnvString, EnvValue);
 #else
 		setenv(EnvString, EnvValue, 1);
 #endif // PLATFORM_WINDOWS
@@ -140,7 +166,7 @@ void DelEnv(const char* EnvString)
 	if (EnvString)
 	{
 #if PLATFORM_WINDOWS
-		PutEnv(EnvString, "");
+		_putenv_s(EnvString, "");
 #else
 		unsetenv(EnvString);
 #endif // PLATFORM_WINDOWS
@@ -165,6 +191,11 @@ std::string GetEnv(const char* EnvString)
 #endif // PLATFORM_WINDOWS
 	}
 	return EnvValue;
+}
+
+inline void FTickerTick(float ElapsedTime)
+{
+	FTSTicker::GetCoreTicker().Tick(ElapsedTime);
 }
 
 const MString LiveLinkSubjectNamesCommandName("LiveLinkSubjectNames");
@@ -259,6 +290,122 @@ public:
 			appendToResult(Entry);
 		}
 
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkSubjectLinkedAssetsCommandName("LiveLinkSubjectLinkedAssets");
+
+class LiveLinkSubjectLinkedAssetsCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkSubjectLinkedAssetsCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MStringArray Assets;
+		MayaLiveLinkStreamManager::TheOne().GetSubjectLinkedAssets(Assets);
+
+		const auto SubjectsLen = Assets.length();
+		for (unsigned int i = 0; i < SubjectsLen; ++i)
+		{
+			const auto& Entry = Assets[i];
+			appendToResult(Entry);
+		}
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkSubjectTargetAssetsCommandName("LiveLinkSubjectTargetAssets");
+
+class LiveLinkSubjectTargetAssetsCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkSubjectTargetAssetsCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MStringArray Assets;
+		MayaLiveLinkStreamManager::TheOne().GetSubjectTargetAssets(Assets);
+
+		const auto SubjectsLen = Assets.length();
+		for (unsigned int i = 0; i < SubjectsLen; ++i)
+		{
+			const auto& Entry = Assets[i];
+			appendToResult(Entry);
+		}
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkSubjectLinkStatusCommandName("LiveLinkSubjectLinkStatus");
+
+class LiveLinkSubjectLinkStatusCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkSubjectLinkStatusCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MStringArray Assets;
+		MayaLiveLinkStreamManager::TheOne().GetSubjectLinkStatus(Assets);
+
+		const auto SubjectsLen = Assets.length();
+		for (unsigned int i = 0; i < SubjectsLen; ++i)
+		{
+			const auto& Entry = Assets[i];
+			appendToResult(Entry);
+		}
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkSubjectClassesCommandName("LiveLinkSubjectClasses");
+
+class LiveLinkSubjectClassesCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkSubjectClassesCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MStringArray Assets;
+		MayaLiveLinkStreamManager::TheOne().GetSubjectClasses(Assets);
+
+		const auto SubjectsLen = Assets.length();
+		for (unsigned int i = 0; i < SubjectsLen; ++i)
+		{
+			const auto& Entry = Assets[i];
+			appendToResult(Entry);
+		}
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkSubjectUnrealNativeClassesCommandName("LiveLinkSubjectUnrealNativeClasses");
+
+class LiveLinkSubjectUnrealNativeClassesCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkSubjectUnrealNativeClassesCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MStringArray Assets;
+		MayaLiveLinkStreamManager::TheOne().GetSubjectUnrealNativeClasses(Assets);
+
+		const auto SubjectsLen = Assets.length();
+		for (unsigned int i = 0; i < SubjectsLen; ++i)
+		{
+			const auto& Entry = Assets[i];
+			appendToResult(Entry);
+		}
 		return MS::kSuccess;
 	}
 };
@@ -363,9 +510,10 @@ public:
 		MString ConnectionStatus("No Provider (internal error)");
 		bool bConnection = false;
 
-		if(FUnrealStreamManager::TheOne().GetLiveLinkProvider().IsValid())
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if(LiveLinkProvider.IsValid())
 		{
-			if (FUnrealStreamManager::TheOne().GetLiveLinkProvider()->HasConnection())
+			if (LiveLinkProvider->HasConnection())
 			{
 				ConnectionStatus = "Connected";
 				bConnection = true;
@@ -374,16 +522,6 @@ public:
 			{
 				ConnectionStatus = "No Connection";
 			}
-		}
-
-		static bool PreviousConnectionStatus = false;
-		if (PreviousConnectionStatus != bConnection)
-		{
-			if (bConnection)
-			{
-				MayaLiveLinkStreamManager::TheOne().RebuildSubjects(false);
-			}
-			PreviousConnectionStatus = bConnection;
 		}
 
 		appendToResult(ConnectionStatus);
@@ -415,6 +553,310 @@ public:
 		argData.getCommandArgument(1, StreamType);
 
 		MayaLiveLinkStreamManager::TheOne().ChangeStreamType(SubjectPath, StreamType);
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkGetAssetsByClassCommandName("LiveLinkGetAssetsByClass");
+
+class LiveLinkGetAssetsByClassCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkGetAssetsByClassCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if (!LiveLinkProvider.IsValid() ||
+			!LiveLinkProvider->HasConnection())
+		{
+			displayError("Live Link provider invalid or not connected.");
+			appendToResult("");
+			return MS::kFailure;
+		}
+
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kBoolean);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString AssetClass;
+		argData.getCommandArgument(0, AssetClass);
+		bool SearchSubClasses;
+		argData.getCommandArgument(1, SearchSubClasses);
+
+		TMap<FString, FStringArray> UnrealAssets;
+		if (LiveLinkProvider->GetAssetsByClass(AssetClass.asChar(), SearchSubClasses, UnrealAssets))
+		{
+			int StartIndex = 0;
+			for (auto& Pair : UnrealAssets)
+			{
+				auto& StringArray = Pair.Value.Array;
+
+				// Class name
+				appendToResult(TCHAR_TO_ANSI(*Pair.Key));
+
+				// Object path start index and number of objects for the current class
+				appendToResult(StartIndex);
+				appendToResult(StringArray.Num());
+				StartIndex += StringArray.Num();
+
+				// Object paths
+				for (auto& ObjectPath : StringArray)
+				{
+					appendToResult(TCHAR_TO_ANSI(*ObjectPath));
+				}
+			}
+		}
+		else
+		{
+			appendToResult("Timeout!");
+		}
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkGetAssetsByParentClassCommandName("LiveLinkGetAssetsByParentClass");
+
+class LiveLinkGetAssetsByParentClassCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkGetAssetsByParentClassCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if (!LiveLinkProvider.IsValid() ||
+			!LiveLinkProvider->HasConnection())
+		{
+			displayError("Live Link provider invalid or not connected.");
+			appendToResult("");
+			return MS::kFailure;
+		}
+
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kBoolean);
+		Syntax.addArg(MSyntax::kString);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString AssetClass;
+		argData.getCommandArgument(0, AssetClass);
+		bool SearchSubClasses;
+		argData.getCommandArgument(1, SearchSubClasses);
+		MString ParentClassesString;
+		argData.getCommandArgument(2, ParentClassesString);
+
+		TArray<FString> ParentClasses;
+		FString ArrayString = ParentClassesString.asChar();
+		ArrayString.ParseIntoArray(ParentClasses, TEXT(","));
+
+		FStringArray UnrealAssets;
+		FStringArray NativeAssetClasses;
+		if (LiveLinkProvider->GetAssetsByParentClass(AssetClass.asChar(), SearchSubClasses, ParentClasses, UnrealAssets, NativeAssetClasses))
+		{
+			int StartIndex = 0;
+			for (FString& Asset : UnrealAssets.Array)
+			{
+				// Class name
+				appendToResult(TCHAR_TO_ANSI(*Asset));
+			}
+			if (UnrealAssets.Array.Num() == 0)
+			{
+				appendToResult("");
+			}
+			else
+			{
+				appendToResult("|");
+				for (FString& Class : NativeAssetClasses.Array)
+				{
+					// Native class name
+					appendToResult(TCHAR_TO_ANSI(*Class));
+				}
+			}
+		}
+		else
+		{
+			appendToResult("Timeout!");
+		}
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkGetActorsByClassCommandName("LiveLinkGetActorsByClass");
+
+class LiveLinkGetActorsByClassCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkGetActorsByClassCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if (!LiveLinkProvider.IsValid() ||
+			!LiveLinkProvider->HasConnection())
+		{
+			displayError("Live Link provider invalid or not connected.");
+			appendToResult("");
+			return MS::kFailure;
+		}
+
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString AssetClass;
+		argData.getCommandArgument(0, AssetClass);
+
+		TMap<FString, FStringArray> UnrealAssets;
+		if (LiveLinkProvider->GetActorsByClass(AssetClass.asChar(), UnrealAssets))
+		{
+			int StartIndex = 0;
+			for (auto& Pair : UnrealAssets)
+			{
+				auto& StringArray = Pair.Value.Array;
+
+				// Class name
+				appendToResult(TCHAR_TO_ANSI(*Pair.Key));
+
+				// Object path start index and number of objects for the current class
+				appendToResult(StartIndex);
+				appendToResult(StringArray.Num());
+				StartIndex += StringArray.Num();
+
+				// Object paths
+				for (auto& ObjectPath : StringArray)
+				{
+					appendToResult(TCHAR_TO_ANSI(*ObjectPath));
+				}
+			}
+		}
+		else
+		{
+			appendToResult("Timeout!");
+		}
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkGetAnimSequencesBySkeletonCommandName("LiveLinkGetAnimSequencesBySkeleton");
+
+class LiveLinkGetAnimSequencesBySkeletonCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkGetAnimSequencesBySkeletonCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if (!LiveLinkProvider.IsValid() ||
+			!LiveLinkProvider->HasConnection())
+		{
+			displayError("Live Link provider invalid or not connected.");
+			appendToResult("");
+			return MS::kFailure;
+		}
+
+		TMap<FString, FStringArray> UnrealAssets;
+		if (LiveLinkProvider->GetAnimSequencesBySkeleton(UnrealAssets))
+		{
+			int StartIndex = 0;
+			for (auto& Pair : UnrealAssets)
+			{
+				auto& StringArray = Pair.Value.Array;
+
+				// Class name
+				appendToResult(TCHAR_TO_ANSI(*Pair.Key));
+
+				// Object path start index and number of objects for the current class
+				appendToResult(StartIndex);
+				appendToResult(StringArray.Num());
+				StartIndex += StringArray.Num();
+
+				// Object paths
+				for (auto& ObjectPath : StringArray)
+				{
+					appendToResult(TCHAR_TO_ANSI(*ObjectPath));
+				}
+			}
+		}
+		else
+		{
+			appendToResult("Timeout!");
+		}
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkLinkUnrealAssetCommandName("LiveLinkLinkUnrealAsset");
+
+class LiveLinkLinkUnrealAssetCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkLinkUnrealAssetCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kString);
+		Syntax.addArg(MSyntax::kBoolean);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString SubjectPath;
+		argData.getCommandArgument(0, SubjectPath);
+
+		IMStreamedEntity::LinkAssetInfo LinkInfo;
+		argData.getCommandArgument(1, LinkInfo.UnrealAssetPath);
+		argData.getCommandArgument(2, LinkInfo.UnrealAssetClass);
+		argData.getCommandArgument(3, LinkInfo.SavedAssetPath);
+		argData.getCommandArgument(4, LinkInfo.SavedAssetName);
+		argData.getCommandArgument(5, LinkInfo.UnrealNativeClass);
+		argData.getCommandArgument(6, LinkInfo.bSetupOnly);
+
+		MayaLiveLinkStreamManager::TheOne().LinkUnrealAsset(SubjectPath, LinkInfo);
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkUnlinkUnrealAssetCommandName("LiveLinkUnlinkUnrealAsset");
+
+class LiveLinkUnlinkUnrealAssetCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkUnlinkUnrealAssetCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString SubjectPath;
+		argData.getCommandArgument(0, SubjectPath);
+
+		MayaLiveLinkStreamManager::TheOne().UnlinkUnrealAsset(SubjectPath);
 
 		return MS::kSuccess;
 	}
@@ -581,7 +1023,7 @@ public:
 				Settings->UnicastEndpoint = EndpointStrings[0].asChar();
 				NetworkExtension.RestartServices();
 
-				UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged);
+				UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged, OnTimeChangedReceived);
 				MayaLiveLinkStreamManager::TheOne().Reset();
 				MayaLiveLinkStreamManager::TheOne().RebuildSubjects();
 
@@ -658,7 +1100,7 @@ public:
 			UnrealInitializer::TheOne().StopLiveLink();
 
 			FUnrealStreamManager::TheOne().SetLiveLinkProvider(static_cast<LiveLinkSource>(SourceIndex - 1));
-			UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged);
+			UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged, OnTimeChangedReceived);
 			MayaLiveLinkStreamManager::TheOne().Reset();
 			MayaLiveLinkStreamManager::TheOne().RebuildSubjects();
 		}
@@ -799,7 +1241,7 @@ public:
 
 	MStatus			doIt(const MArgList& args) override
 	{
-		MString Version = PluginVersion;
+		MString Version = PluginVersion.c_str();
 		Version.substitute("v", "");
 		appendToResult(Version);
 
@@ -887,7 +1329,7 @@ public:
 
 	MStatus			doIt(const MArgList& args) override
 	{
-		appendToResult(MString("https://www.autodesk.com/unreal-livelink-docs"));
+		appendToResult(MString("https://help.autodesk.com/view/MAYAUL/2023/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html"));
 
 		return MS::kSuccess;
 	}
@@ -915,43 +1357,210 @@ public:
 	}
 };
 
+const MString LiveLinkPluginUninitializedCommandName("LiveLinkPluginUninitialized");
+
+class LiveLinkPluginUninitializedCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkPluginUninitializedCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		PreviousConnectionStatus = false;
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkPlayheadSyncCommandName("LiveLinkPlayheadSync");
+
+class LiveLinkPlayheadSyncCommand : public MPxCommand
+{
+	static bool bPlayHeadSync;
+
+public:
+	static constexpr char EnableFlag[] = "en";
+	static constexpr char EnableFlagLong[] = "enable";
+
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkPlayheadSyncCommand(); }
+
+	static MSyntax CreateSyntax()
+	{
+		MStatus Status;
+		MSyntax Syntax;
+
+		Syntax.enableQuery(true);
+
+		Status = Syntax.addFlag(EnableFlag, EnableFlagLong, MSyntax::kBoolean);
+		CHECK_MSTATUS(Status);
+
+		return Syntax;
+	}
+
+	MStatus doIt(const MArgList& args) override
+	{
+		MStatus Status;
+		MArgDatabase ArgData(syntax(), args, &Status);
+		CHECK_MSTATUS_AND_RETURN_IT(Status);
+
+		const bool bIsPlayheadSyncEnabled = ArgData.isFlagSet(EnableFlagLong, &Status);
+		if (ArgData.isQuery())
+		{
+			setResult(bPlayHeadSync);
+		}
+		else
+		{
+			ArgData.getFlagArgument(EnableFlagLong, 0, bPlayHeadSync);
+			setResult(true);
+		}
+
+		return MS::kSuccess;
+	}
+
+	static bool IsEnabled() { return bPlayHeadSync; }
+};
+constexpr char LiveLinkPlayheadSyncCommand::EnableFlag[];
+constexpr char LiveLinkPlayheadSyncCommand::EnableFlagLong[];
+bool LiveLinkPlayheadSyncCommand::bPlayHeadSync = true;
+
+const MString LiveLinkPauseAnimSyncCommandName("LiveLinkPauseAnimSync");
+
+class LiveLinkPauseAnimSyncCommand : public MPxCommand
+{
+	static bool bPausedState;
+
+public:
+	static constexpr char EnableFlag[] = "en";
+	static constexpr char EnableFlagLong[] = "enable";
+
+	static void		cleanup() {}
+	static void* creator() { return new LiveLinkPauseAnimSyncCommand(); }
+
+	static MSyntax CreateSyntax()
+	{
+		MStatus Status;
+		MSyntax Syntax;
+
+		Syntax.enableQuery(true);
+
+		Status = Syntax.addFlag(EnableFlag, EnableFlagLong, MSyntax::kBoolean);
+		CHECK_MSTATUS(Status);
+
+		return Syntax;
+	}
+
+	MStatus doIt(const MArgList& args) override
+	{
+		MStatus Status;
+		MArgDatabase ArgData(syntax(), args, &Status);
+		CHECK_MSTATUS_AND_RETURN_IT(Status);
+
+		const bool bIsPauseEnabled = ArgData.isFlagSet(EnableFlagLong, &Status);
+		if (ArgData.isQuery())
+		{
+			setResult(bPausedState);
+		}
+		else
+		{
+			bool NewState = false; 
+			ArgData.getFlagArgument(EnableFlagLong, 0, NewState);
+			bool RebuildSubjects = bPausedState && !NewState;
+			bPausedState = NewState;
+			MayaLiveLinkStreamManager::TheOne().PauseAnimSequenceStreaming(bPausedState);
+			MayaUnrealLiveLinkUtils::RefreshUI();
+
+			// If we were in paused state, we will need to rebuild stream subjects.
+			if (RebuildSubjects)
+			{
+				MGlobal::executeTaskOnIdle(RebuildStreamSubjects, nullptr, MGlobal::kVeryLowIdlePriority);
+			}
+			setResult(true);
+		}
+
+		return MS::kSuccess;
+	}
+
+	static bool IsEnabled() { return bPausedState; }
+};
+constexpr char LiveLinkPauseAnimSyncCommand::EnableFlag[];
+constexpr char LiveLinkPauseAnimSyncCommand::EnableFlagLong[];
+bool LiveLinkPauseAnimSyncCommand::bPausedState = false;
 
 void OnMayaExit(void* client)
 {
 	MayaLiveLinkStreamManager::TheOne().ClearSubjects();
 }
 
-void OnScenePreOpen(void* client)
+void OnScenePreOpen(void* Client)
 {
 	ClearViewportCallbacks();
 	MayaLiveLinkStreamManager::TheOne().Reset();
-	RefreshUI();
+	MayaUnrealLiveLinkUtils::RefreshUI();
 }
 
-void OnSceneOpen(void* client)
+void OnScenePreNew(void* Client)
 {
-	//BuildStreamHierarchyData();
+	OnScenePreOpen(Client);
+}
+
+void OnSceneOpen(void* Client)
+{
+	MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkOnSceneOpen");
 }
 
 bool CameraManipStarted = false;
-bool CameraManipEnded = false;
 bool AnimCurveEdited = false;
 bool AnimKeyFrameEdited = false;
+MTime::Unit CurrentTimeUnit = MTime::kInvalid;
+bool gTimeChangedReceived = false;
+FQualifiedFrameTime TimeReceived;
 std::atomic<bool> SendUpdatedData {false};
 
 // Helper method to send data to unreal when SendUpdatedData is set.
 void StreamDataToUnreal()
 {
 	// Stream data only when this flag is set.
-	if (!SendUpdatedData) return;
-
-	if (!CameraManipEnded && !AnimCurveEdited && !AnimKeyFrameEdited)
+	if (!SendUpdatedData)
 	{
-		MayaLiveLinkStreamManager::TheOne().StreamSubjects();
+		return;
+	}
+
+	// Do we need this?
+	if (gTimeChangedReceived)
+	{
+		gTimeChangedReceived = false;
+		return;
+	}
+
+	auto& StreamManager = MayaLiveLinkStreamManager::TheOne();
+	auto TimeUnit = MAnimControl::currentTime().unit();
+	if (TimeUnit != CurrentTimeUnit)
+	{
+		CurrentTimeUnit = TimeUnit;
+		StreamManager.OnTimeUnitChanged();
+	}
+
+	if (!CameraManipStarted && !AnimCurveEdited && !AnimKeyFrameEdited)
+	{
+		auto LiveLinkProvider = FUnrealStreamManager::TheOne().GetLiveLinkProvider();
+		if (LiveLinkPlayheadSyncCommand::IsEnabled() &&
+			LiveLinkProvider.IsValid() &&
+			LiveLinkProvider->HasConnection())
+		{
+			LiveLinkProvider->OnTimeChanged(MayaUnrealLiveLinkUtils::GetMayaFrameTimeAsUnrealTime());
+
+			// Need to sleep the thread so that the OnTimeChanged message is sent to Unreal
+			using namespace std::chrono_literals;
+			std::this_thread::sleep_for(20ms);
+		}
+
+		StreamManager.StreamSubjects();
+
 	}
 	else
 	{
-		CameraManipEnded = false;
 		if (!AnimCurveEdited)
 		{
 			// If anim curve edited was clear, we can then clear the anim key framed edited flag
@@ -963,20 +1572,123 @@ void StreamDataToUnreal()
 			AnimCurveEdited = false;
 		}
 	}
-	CameraManipStarted = false;
 
 	// Set the streaming flag to false.
 	SendUpdatedData = false;
 }
 
+void StreamOnIdleTask(void* ClientData)
+{
+	if (!ClientData)
+	{
+		return;
+	}
+
+	std::shared_ptr<IMStreamedEntity> Subject = *static_cast<std::shared_ptr<IMStreamedEntity>*>(ClientData);
+	double StreamTime = FPlatformTime::Seconds();
+	auto FrameNumber = MAnimControl::currentTime().value();
+	Subject->OnStream(StreamTime, FrameNumber);
+}
+
+void StreamOnIdle(std::shared_ptr<IMStreamedEntity>& Subject, MGlobal::MIdleTaskPriority Priority)
+{
+	MGlobal::executeTaskOnIdle(StreamOnIdleTask, &Subject, Priority);
+}
+
 void OnTimeChanged(MTime& Time, void* ClientData)
 {
 	SendUpdatedData = true;
+	AnimCurveEdited  = false;
+	AnimKeyFrameEdited = false;
+}
+
+int FindMatchingDagPath(const MString& DagPathName, const MFnDagNode& DagNode, const MStringArray& SubjectPaths, MDagPath& SubjectDagPath)
+{
+	int PathIndex = -1;
+	const auto SubjectPathLen = SubjectPaths.length();
+	for (unsigned int path = 0; path < SubjectPathLen; ++path)
+	{
+		const MString& SubjectPath = SubjectPaths[path];
+
+		MSelectionList SelectionList;
+		SelectionList.add(SubjectPath);
+		MObject SubjectObj;
+		SelectionList.getDependNode(0, SubjectObj);
+		SelectionList.getDagPath(0, SubjectDagPath);
+
+		if (SubjectPath == DagPathName)
+		{
+			PathIndex = path;
+			break;
+		}
+		else
+		{
+			MDagPath ShapeDagPath = SubjectDagPath;
+			ShapeDagPath.extendToShape();
+			if (ShapeDagPath.fullPathName() == DagPathName)
+			{
+				PathIndex = path;
+				break;
+			}
+			else if (PathIndex == -1 && DagNode.isChildOf(SubjectObj))
+			{
+				PathIndex = path;
+			}
+		}
+	}
+
+	return PathIndex;
+}
+
+bool FindNodeAffectedByConstraint(const MObject& Node, const MStringArray& SubjectPaths, MObject& NodeWithConstraint)
+{
+	MFnDependencyNode DependNode(Node);
+	MObject Constraint;
+	MPlug ParentMatrixPlugArray = DependNode.findPlug("parentMatrix", false);
+	if (!ParentMatrixPlugArray.isNull() && ParentMatrixPlugArray.isArray())
+	{
+		const unsigned int SubjectPathLen = SubjectPaths.length();
+		for (unsigned int ParentMatrixIndex = 0; ParentMatrixIndex < ParentMatrixPlugArray.numElements(); ++ParentMatrixIndex)
+		{
+			MPlug DependPlug = ParentMatrixPlugArray[ParentMatrixIndex];
+			MPlugArray DependConnections;
+			DependPlug.connectedTo(DependConnections, false, true);
+			for (unsigned int DependIdx = 0; DependIdx < DependConnections.length(); ++DependIdx)
+			{
+				MPlug DependConnection = DependConnections[DependIdx];
+				MObject DependObject = DependConnection.node();
+				if (DependObject.hasFn(MFn::kConstraint))
+				{
+					for (unsigned int path = 0; path < SubjectPathLen; ++path)
+					{
+						const MString& SubjectPath = SubjectPaths[path];
+
+						MSelectionList SelectionList;
+						SelectionList.add(SubjectPath);
+						MDagPath SubjectDagPath;
+						MObject SubjectObj;
+						SelectionList.getDependNode(0, SubjectObj);
+						SelectionList.getDagPath(0, SubjectDagPath);
+						MFnDagNode DagNode(SubjectDagPath);
+						if (DagNode.isParentOf(DependObject))
+						{
+							NodeWithConstraint = SubjectDagPath.node();
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 {
 	auto& MayaStreamManager = MayaLiveLinkStreamManager::TheOne();
+
+	bool bInternalUpdate = ClientData && (*reinterpret_cast<bool*>(ClientData));
 
 	// Get the list of tracked subjects
 	MStringArray SubjectPaths;
@@ -987,10 +1699,88 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 		return;
 	}
 
+	MayaStreamManager.OnPreAnimCurvesEdited();
+
+	struct UnrealTrackInfo
+	{
+		const char* Name;
+		double ConversionFactor = 1.0;
+	};
+
+	static const std::map<std::string, const char*> CommonNames =
+	{
+		{ "translateX", "LocationX" },
+		{ "translateY", "LocationZ" },
+		{ "translateZ", "LocationY" },
+		{ "rotateX", "RotationY" },
+		{ "rotateY", "RotationZ" },
+		{ "rotateZ", "RotationX" },
+		{ "scaleX", "ScaleX" },
+		{ "scaleY", "ScaleY" },
+		{ "scaleZ", "ScaleZ" },
+		{ "visibility", "bHidden" }
+	};
+
+	static const std::map<std::string, const char*> CommonNamesZup =
+	{
+		{ "translateX", "LocationX" },
+		{ "translateY", "LocationY" },
+		{ "translateZ", "LocationZ" },
+		{ "rotateX", "RotationX" },
+		{ "rotateY", "RotationY" },
+		{ "rotateZ", "RotationZ" },
+		{ "scaleX", "ScaleX" },
+		{ "scaleY", "ScaleY" },
+		{ "scaleZ", "ScaleZ" },
+		{ "visibility", "bHidden" }
+	};
+
+	const double InchToMM = MDistance(1.0, MDistance::kInches).asMillimeters();
+	static const std::map<std::string, UnrealTrackInfo> CameraNames =
+	{
+		{ "fStop", { "CurrentAperture" } },
+		{ "focalLength", { "CurrentFocalLength" } },
+		{ "horizontalFilmAperture", { "Filmback.SensorWidth", InchToMM } },
+		{ "verticalFilmAperture", { "Filmback.SensorHeight", InchToMM } },
+		{ "focusDistance", { "FocusSettings.ManualFocusDistance" } },
+	};
+
+	static const std::map<std::string, const char*> LightNames =
+	{
+		{ "colorR", "LightColorR" },
+		{ "colorG", "LightColorG" },
+		{ "colorB", "LightColorB" },
+		{ "intensity", "Intensity" },
+//		{ "coneAngle","OuterConeAngle"}, // Will be supported by MAYA-121680
+	};
+
+	auto& CurveCommonNames = MGlobal::isYAxisUp() ? CommonNames : CommonNamesZup;
+
+	auto MatchName = [&](const std::string& MayaName,
+						 double& ConversionFactor) -> const char*
+	{
+		auto Found = CurveCommonNames.find(MayaName);
+		if (Found != CurveCommonNames.end())
+		{
+			return Found->second;
+		}
+		Found = LightNames.find(MayaName);
+		if (Found != LightNames.end())
+		{
+			return Found->second;
+		}
+		auto CineCameraNameFound = CameraNames.find(MayaName);
+		if (CineCameraNameFound != CameraNames.end())
+		{
+			ConversionFactor = CineCameraNameFound->second.ConversionFactor;
+			return CineCameraNameFound->second.Name;
+		}
+		return nullptr;
+	};
+
 	MDagPathArray DagPathArray;
 	MStatus Status;
 	auto Length = Objects.length();
-	std::set<unsigned int> DagPathsToStream;
 	for (unsigned int index = 0; index < Length; ++index)
 	{
 		MObject& Obj = Objects[index];
@@ -1003,43 +1793,147 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 			for (unsigned int i = 0; i < Connections.length(); ++i)
 			{
 				auto& Connection = Connections[i];
+
+				MObjectArray Targets;
 				MPlugArray SrcPlugArray;
 				Connection.connectedTo(SrcPlugArray, false, true);
 				for (unsigned int src = 0; src < SrcPlugArray.length(); ++src)
 				{
-					MPlug& Plug = SrcPlugArray[src];
+					MPlug Plug = SrcPlugArray[src];
 					MObject Node = Plug.node();
+
+					// Check for a motion path
+					if (Node.hasFn(MFn::kMotionPath))
+					{
+						MFnMotionPath Path(Node);
+						MDagPathArray AnimatedObjects;
+						Path.getAnimatedObjects(AnimatedObjects);
+						bool bFound = false;
+						for (unsigned int Parent = 0; Parent < AnimatedObjects.length() && !bFound; ++Parent)
+						{
+							MFnDagNode DagNode(AnimatedObjects[Parent]);
+							
+							MDagPath SubjectDagPath;
+							int PathIndex = FindMatchingDagPath(AnimatedObjects[Parent].fullPathName(), DagNode, SubjectPaths, SubjectDagPath);
+							if (PathIndex >= 0 && SubjectDagPath.isValid())
+							{
+								MPlugArray AnimatedPlugs;
+								MAnimUtil::findAnimatedPlugs(SubjectDagPath, AnimatedPlugs, true);
+								for (unsigned int AnimPlugIdx = 0; AnimPlugIdx < AnimatedPlugs.length() && !bFound; ++AnimPlugIdx)
+								{
+									Plug = AnimatedPlugs[AnimPlugIdx];
+
+									MPlugArray SrcAnimatedPlugs;
+									AnimatedPlugs[AnimPlugIdx].connectedTo(SrcAnimatedPlugs, true, false);
+									for (unsigned int Anim = 0; Anim < SrcAnimatedPlugs.length(); ++Anim)
+									{
+										MObject SrcAnimatedObject = SrcAnimatedPlugs[Anim].node();
+										if (SrcAnimatedObject.hasFn(MFn::kMotionPath) &&
+											SrcAnimatedObject == Node)
+										{
+											Node = AnimatedObjects[Parent].node();
+											bFound = true;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+					// Check for a constraint
+					else if (Node.hasFn(MFn::kTransform))
+					{
+						MObject NodeWithConstraint;
+						if (FindNodeAffectedByConstraint(Node, SubjectPaths, NodeWithConstraint))
+						{
+							Node = NodeWithConstraint;
+						}
+					}
+
 					if (Node.hasFn(MFn::kDagNode))
 					{
 						MFnDagNode DagNode(Node);
-						MDagPath DagPath;
 
+						MDagPath DagPath;
 						if (DagNode.getPath(DagPath))
 						{
 							MString DagPathName;
 							DagPathName = DagPath.fullPathName();
 
-							for (unsigned int path = 0; path < SubjectPathLen; ++path)
+							// Check if the AnimCurve is linked to a blendshape outside the Subject hierarchy
+							auto FindBlendShapeOwner = [&MayaStreamManager](const MPlug& Plug,
+																			auto& FindBlendShapeOwnerRef) -> IMStreamedEntity*
 							{
-								MString& SubjectPath = SubjectPaths[path];
+								IMStreamedEntity* Owner = nullptr;
 
-								MSelectionList SelectionList;
-								SelectionList.add(SubjectPath);
-								MDagPath SubjectDagPath;
-								MObject SubjectObj;
-								SelectionList.getDependNode(0, SubjectObj);
-								SelectionList.getDagPath(0, SubjectDagPath);
-
-								if (SubjectPath == DagPathName ||
-									DagNode.isChildOf(SubjectObj))
+								MPlugArray PlugArray;
+								Plug.connectedTo(PlugArray, false, true);
+								for (unsigned int PlugIndex = 0; PlugIndex < PlugArray.length() && !Owner; ++PlugIndex)
 								{
-									if (DagPathsToStream.find(path) == DagPathsToStream.end())
+									MObject BlendShapeObject = PlugArray[PlugIndex].node();
+									if (BlendShapeObject.hasFn(MFn::kBlendShape))
 									{
-										DagPathsToStream.insert(path);
-										DagPathArray.append(SubjectDagPath);
+										MFnBlendShapeDeformer BlendShape(BlendShapeObject);
+										MPlug WeightPlug = BlendShape.findPlug("weight", false);
+										if (!WeightPlug.isNull())
+										{
+											Owner = MayaStreamManager.GetSubjectOwningBlendShape(BlendShape.name());
+											if (Owner)
+											{
+												break;
+											}
+										}
 									}
+									else if (BlendShapeObject.hasFn(MFn::kTransform))
+									{
+										MPlugArray TransformConnections;
+										PlugArray[PlugIndex].connectedTo(TransformConnections, false, true);
+										for (unsigned int Src = 0; Src < TransformConnections.length() && !Owner; ++Src)
+										{
+											Owner = FindBlendShapeOwnerRef(TransformConnections[Src], FindBlendShapeOwnerRef);
+										}
+									}
+								}
+								return Owner;
+							};
+
+							IMStreamedEntity* SubjectOwningBlendshape = FindBlendShapeOwner(Plug, FindBlendShapeOwner);
+
+							auto SubjectAnimCurveEdited = [&Plug, &CurveCommonNames, &MatchName, &bInternalUpdate,
+														   &Obj, &DagPathArray](IMStreamedEntity* Subject,
+																				const MDagPath& SubjectDagPath)
+							{
+								auto Attribute = Plug.attribute();
+								MFnAttribute Attrib(Attribute);
+
+								double ConversionFactor = 1.0;
+								const char* AttribName = Attrib.name().asChar();
+								const char* UnrealName = MatchName(AttribName, ConversionFactor);
+
+								// If UnrealName is null, assume it's a custom attribute to be used in a blueprint.
+								Subject->OnAnimCurveEdited(UnrealName ? UnrealName : AttribName, Obj, Plug, ConversionFactor);
+								MayaUnrealLiveLinkUtils::AddUnique(SubjectDagPath, DagPathArray);
+								if (!bInternalUpdate)
+								{
 									AnimCurveEdited = true;
-									break;
+								}
+							};
+
+							if (SubjectOwningBlendshape)
+							{
+								SubjectAnimCurveEdited(SubjectOwningBlendshape, SubjectOwningBlendshape->GetDagPath());
+							}
+							else
+							{
+								MDagPath SubjectDagPath;
+								int PathIndex = FindMatchingDagPath(DagPathName, DagNode, SubjectPaths, SubjectDagPath);
+								if (PathIndex >= 0 && SubjectDagPath.isValid())
+								{
+									IMStreamedEntity* Subject = MayaStreamManager.GetSubjectByDagPath(SubjectPaths[PathIndex]);
+									if (Subject)
+									{
+										SubjectAnimCurveEdited(Subject, SubjectDagPath);
+									}
 								}
 							}
 						}
@@ -1054,14 +1948,222 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 		MayaStreamManager.StreamSubject(DagPathArray[Index]);
 	}
 
+	if (!bInternalUpdate)
+	{
+		SendUpdatedData = true;
+	}
 }
 
-void OnAnimKeyframeEdited(MObjectArray &objects,void *clientData)
+void OnAnimKeyframeEdited(MObjectArray& Objects, void* ClientData)
 {
+	auto& MayaStreamManager = MayaLiveLinkStreamManager::TheOne();
+
 	AnimKeyFrameEdited = true;
+
+	// Get the list of tracked subjects
+	MStringArray SubjectPaths;
+	MayaStreamManager.GetSubjectPaths(SubjectPaths);
+
+	const auto NumSubjectPaths = SubjectPaths.length();
+	if (NumSubjectPaths == 0)
+	{
+		return;
+	}
+
+	auto Length = Objects.length();
+	MDagPathArray DagPathArray;
+
+	for (unsigned int index = 0; index < Length; ++index)
+	{
+		MObject& KeyFrameObj = Objects[index];
+		if (KeyFrameObj.hasFn(MFn::kKeyframeDelta))
+		{
+			MStatus Status;
+			MFnKeyframeDelta KeyFrameDelta(KeyFrameObj);
+			auto Obj = KeyFrameDelta.paramCurve(&Status);
+
+			if (Status && !Obj.isNull() && Obj.hasFn(MFn::kAnimCurve))
+			{
+				MFnAnimCurve AnimCurve(Obj);
+				MPlugArray Connections;
+				AnimCurve.getConnections(Connections);
+
+				for (unsigned int i = 0; i < Connections.length(); ++i)
+				{
+					const MPlug& Connection = Connections[i];
+					MPlugArray SrcPlugArray;
+					Connection.connectedTo(SrcPlugArray, false, true);
+					for (unsigned int src = 0; src < SrcPlugArray.length(); ++src)
+					{
+						MPlug Plug = SrcPlugArray[src];
+						MObject Node = Plug.node();
+						IMStreamedEntity* SubjectOwningBlendShape = nullptr;
+
+						if (Node.hasFn(MFn::kIkHandle))
+						{
+							MFnDependencyNode DependNode(Node);
+							MPlug StartJointPlug = DependNode.findPlug("startJoint", false);
+							if (!StartJointPlug.isNull())
+							{
+								MPlugArray PlugArray;
+								StartJointPlug.connectedTo(PlugArray, true, false);
+								for (unsigned int PlugIdx = 0; PlugIdx < PlugArray.length(); ++PlugIdx)
+								{
+									MPlug& DstPlug = PlugArray[PlugIdx];
+									MObject DstObject = DstPlug.node();
+									if (DstObject.hasFn(MFn::kJoint))
+									{
+										Node = DstObject;
+										break;
+									}
+								}
+							}
+						}
+						else if (Node.hasFn(MFn::kTransform))
+						{
+							auto UpdateNodeAndPlugForBlendShape = [&MayaStreamManager](const MPlug& Plug,
+																					   auto& UpdateNodeAndPlugForBlendShapeRef,
+																					   MObject& OutNode,
+																					   MPlug& OutPlug) -> IMStreamedEntity*
+							{
+								IMStreamedEntity* Owner = nullptr;
+								MPlugArray TransformSrcPlugs;
+								Plug.connectedTo(TransformSrcPlugs, false, true);
+								for (unsigned int Src = 0; Src < TransformSrcPlugs.length(); ++Src)
+								{
+									const MPlug& SrcPlug = TransformSrcPlugs[Src];
+									MObject SrcObject = SrcPlug.node();
+									if (SrcObject.hasFn(MFn::kBlendShape))
+									{
+										MFnBlendShapeDeformer BlendShape(SrcObject);
+										Owner = MayaStreamManager.GetSubjectOwningBlendShape(BlendShape.name());
+										if (Owner)
+										{
+											OutNode = SrcObject;
+											OutPlug = SrcPlug;
+											return Owner;
+										}
+									}
+									else if (SrcObject.hasFn(MFn::kTransform))
+									{
+										Owner = UpdateNodeAndPlugForBlendShapeRef(SrcPlug,
+																				  UpdateNodeAndPlugForBlendShapeRef,
+																				  OutNode,
+																				  OutPlug);
+										if (Owner)
+										{
+											return Owner;
+										}
+									}
+								}
+
+								return Owner;
+							};
+							
+							SubjectOwningBlendShape = UpdateNodeAndPlugForBlendShape(Plug, UpdateNodeAndPlugForBlendShape, Node, Plug);
+							if (!SubjectOwningBlendShape)
+							{
+								// Check for a constraint
+								MObject NodeWithConstraint;
+								if (FindNodeAffectedByConstraint(Node, SubjectPaths, NodeWithConstraint))
+								{
+									Node = NodeWithConstraint;
+								}
+							}
+						}
+
+						if (Node.hasFn(MFn::kHikIKEffector))
+						{
+							// Try to match the InputCharacterDefinition from the effector to the one of this subject
+							IMStreamedEntity* Subject = MayaLiveLinkStreamManager::TheOne().GetSubjectByHikIKEffector(Node);
+							if (Subject)
+							{
+								Subject->OnAnimKeyframeEdited(AnimCurve.name(), Obj, Plug);
+								MayaUnrealLiveLinkUtils::AddUnique(Subject->GetDagPath(), DagPathArray);
+							}
+						}
+						else if (Node.hasFn(MFn::kDagNode))
+						{
+							MFnDagNode DagNode(Node);
+
+							MDagPath DagPath;
+							if (DagNode.getPath(DagPath))
+							{
+								MString DagPathName;
+								DagPathName = DagPath.fullPathName();
+
+								MDagPath SubjectDagPath;
+								int PathIndex = FindMatchingDagPath(DagPathName, DagNode, SubjectPaths, SubjectDagPath);
+								if (PathIndex >= 0 && SubjectDagPath.isValid())
+								{
+									if (IMStreamedEntity* Subject = MayaStreamManager.GetSubjectByDagPath(SubjectPaths[PathIndex]))
+									{
+										Subject->OnAnimKeyframeEdited(AnimCurve.name(), Obj, Plug);
+										MayaUnrealLiveLinkUtils::AddUnique(SubjectDagPath, DagPathArray);
+									}
+								}
+							}
+						}
+						else if (Node.hasFn(MFn::kBlendShape))
+						{
+							MFnBlendShapeDeformer BlendShape(Node);
+							IMStreamedEntity* Subject = SubjectOwningBlendShape ? SubjectOwningBlendShape :
+																				  MayaStreamManager.GetSubjectOwningBlendShape(BlendShape.name());
+							if (Subject)
+							{
+								Subject->OnAnimKeyframeEdited(MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug), Obj, Plug);
+								MayaUnrealLiveLinkUtils::AddUnique(Subject->GetDagPath(), DagPathArray);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for (unsigned int Index = 0; Index < DagPathArray.length(); ++Index)
+	{
+		MayaStreamManager.StreamSubject(DagPathArray[Index]);
+	}
 }
 
-#ifndef MAYA_OLD_PLUGIN
+void ChangeTime(void* ClientData)
+{
+	gTimeChangedReceived = true;
+
+	FFrameRate MayaFrameRate = MayaUnrealLiveLinkUtils::GetMayaFrameRateAsUnrealFrameRate();
+	double FrameTime = 0.0;
+	if (MayaFrameRate != TimeReceived.Rate)
+	{
+		FrameTime = ConvertFrameTime(TimeReceived.Time, TimeReceived.Rate, MayaFrameRate).AsDecimal();
+	}
+	else
+	{
+		FrameTime = TimeReceived.Time.AsDecimal();
+	}
+
+	MAnimControl::setCurrentTime(MTime(FMath::FloorToDouble(FrameTime + KINDA_SMALL_NUMBER), MAnimControl::currentTime().unit()));
+	ChangeTimeDone = true;
+}
+
+void OnTimeChangedReceived(const FQualifiedFrameTime& Time)
+{
+	if (!LiveLinkPlayheadSyncCommand::IsEnabled())
+	{
+		return;
+	}
+
+	// Make sure to only queue 1 ChangeTime event since TimeReceived could be modified
+	// while a previous ChangeTime is currently happening
+	if (ChangeTimeDone)
+	{
+		TimeReceived = Time;
+
+		MGlobal::executeTaskOnIdle(ChangeTime, nullptr, MGlobal::kLowIdlePriority);
+		ChangeTimeDone = false;
+	}
+}
+
 bool IsActiveCameraSubject(const MObject& Node)
 {
 	if (Node.hasFn(MFn::kCamera))
@@ -1100,7 +2202,6 @@ void OnCameraBeginManip(MObject& Node, void* ClientData)
 	{
 		CameraManipStarted = IsActiveCameraSubject(Node);
 	}
-	CameraManipEnded = false;
 }
 
 void OnCameraEndManip(MObject& Node, void* ClientData)
@@ -1111,9 +2212,7 @@ void OnCameraEndManip(MObject& Node, void* ClientData)
 	}
 
 	CameraManipStarted = false;
-	CameraManipEnded = IsActiveCameraSubject(Node);
 }
-#endif // MAYA_OLD_PLUGIN
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1130,17 +2229,8 @@ void OnPostRenderViewport(const MString &str, void* ClientData)
 		return;
 	}
 
-	StreamDataToUnreal();
-
 	auto& MayaStreamManager = MayaLiveLinkStreamManager::TheOne();
 
-#ifdef MAYA_OLD_PLUGIN
-	auto CameraDagPath = MayaStreamManager.GetActiveCameraSubjectPath();
-	if (CameraDagPath.isValid())
-	{
-		MayaStreamManager.StreamSubject(CameraDagPath);
-	}
-#else
 	if (CameraManipStarted)
 	{
 		M3dView View;
@@ -1152,7 +2242,8 @@ void OnPostRenderViewport(const MString &str, void* ClientData)
 			MayaStreamManager.StreamSubject(CameraDagPath);
 		}
 	}
-#endif // MAYA_OLD_PLUGIN
+
+	StreamDataToUnreal();
 }
 
 void OnCameraChanged(const MString& String, MObject& Node, void* ClientData)
@@ -1234,7 +2325,6 @@ MStatus RefreshViewportCallbacks()
 
 				PostRenderCallbackIds.emplace(i, CallbackId);
 
-#ifndef MAYA_OLD_PLUGIN
 				M3dView View;
 				MString EditorPanel = EditorPanels[i];
 				int LastIndex = EditorPanel.rindex('|');
@@ -1279,7 +2369,6 @@ MStatus RefreshViewportCallbacks()
 						}
 					}
 				}
-#endif // MAYA_OLD_PLUGIN
 
 				CallbackId = MUiMessage::addUiDeletedCallback(EditorPanels[i], OnViewportClosed, reinterpret_cast<void*>(i), &Status);
 
@@ -1310,11 +2399,145 @@ void OnInterval(float ElapsedTime, float LastTime, void* ClientData)
 	FTickerTick(ElapsedTime);
 }
 
-#if PLATFORM_WINDOWS
-#define EXTERN_DECL __declspec( dllexport )
-#else
-#define EXTERN_DECL extern
-#endif
+std::atomic<std::chrono::time_point<std::chrono::steady_clock>> PlaybackRangeChangedId;
+std::atomic<bool> PlaybackRangeThreadStarted(false);
+TUniquePtr<class FDetectIdleEvent> DetectIdleEvent = nullptr;
+
+class FDetectIdleEvent : public FRunnable
+{
+public:
+	FDetectIdleEvent();
+
+	virtual ~FDetectIdleEvent();
+
+	virtual bool Init() override { return true; }
+	uint32 Run() override;
+	void Stop() override;
+
+private:
+	FRunnableThread* Thread;
+	bool bRunThread;
+};
+
+FDetectIdleEvent::FDetectIdleEvent()
+: bRunThread(true)
+{
+	Thread = FRunnableThread::Create(this, TEXT("DetectIdleEvent"));
+}
+
+FDetectIdleEvent::~FDetectIdleEvent()
+{
+	if (Thread)
+	{
+		Thread->Kill();
+		delete Thread;
+	}
+}
+
+uint32 FDetectIdleEvent::Run()
+{
+	using namespace std::chrono_literals;
+
+	// Pause the thread until we're sure that no other playback range change occurs
+	while (std::chrono::duration<double>(std::chrono::steady_clock::now() - PlaybackRangeChangedId.load()).count() < 2.0 &&
+		   bRunThread)
+	{
+		FPlatformProcess::Sleep(0.01);
+	}
+
+	// Rebuild the subjects
+	MGlobal::executeTaskOnIdle(RebuildStreamSubjects, nullptr, MGlobal::kHighIdlePriority);
+
+	// End the thread
+	PlaybackRangeThreadStarted.store(false);
+
+	return 0;
+}
+
+void FDetectIdleEvent::Stop()
+{
+	bRunThread = false;
+}
+
+void OnPlaybackRangeChanged(void* ClientData)
+{
+	if (MayaLiveLinkStreamManager::TheOne().GetNumberOfSubjects() == 0)
+	{
+		return;
+	}
+
+	// On playback range changed, we are starting a worker thread that will wait
+	// to see if another playback range changed happens shortly after.
+	// If it does, the wait timer will be reset.
+	// If it doesn't, we will rebuild the subjects with the new playback range.
+
+	// Update the timer, which will reset how long the thread will wait
+	PlaybackRangeChangedId.store(std::chrono::steady_clock::now());
+	if (!PlaybackRangeThreadStarted.load())
+	{
+		if (DetectIdleEvent.IsValid())
+		{
+			DetectIdleEvent->Stop();
+			DetectIdleEvent.Release();
+		}
+
+		// Start the worker thread that will wait for additional user input before rebuilding the subjects
+		PlaybackRangeThreadStarted.store(true);
+		DetectIdleEvent = MakeUnique<FDetectIdleEvent>();
+		DetectIdleEvent->Init();
+	}
+}
+
+void BeforeSaveCallback(void* ClientData)
+{
+	IgnoreAllDagChangesCallback = true;
+
+	MGlobal::executeCommand("MayaUnrealLiveLinkOnScenePreSave");
+}
+
+void AfterSaveCallback(void* ClientData)
+{
+	IgnoreAllDagChangesCallback = false;
+}
+
+void AllDagChangesCallback(MDagMessage::DagMessage MsgType,
+						   MDagPath& Child,
+						   MDagPath& Parent,
+						   void* ClientData)
+{
+	// Update the UI when a parent is added/removed to update the dag paths
+	if (!IgnoreAllDagChangesCallback &&
+		(MsgType == MDagMessage::kParentAdded ||
+		 MsgType == MDagMessage::kParentRemoved))
+	{
+		// Verify if we need to register a callback for the new parent
+		if (MsgType == MDagMessage::kParentAdded && Child.isValid() && Parent.isValid() && Parent.length() != 0)
+		{
+			std::vector<IMStreamedEntity*> Subjects;
+			MayaLiveLinkStreamManager::TheOne().GetSubjectsFromParentPath(Child, Subjects);
+
+			MFnDagNode ChildDagNode(Child);
+			for (IMStreamedEntity* Subject : Subjects)
+			{
+				const MDagPath& SubjectPath = Subject->GetDagPath();
+				bool bRegisterNode = SubjectPath == Child;
+				if (!bRegisterNode)
+				{
+					MObject DagNode = SubjectPath.node();
+					bRegisterNode = ChildDagNode.isParentOf(DagNode);
+				}
+				if (bRegisterNode)
+				{
+					MObject ParentObject = Parent.node();
+					Subject->RegisterParentNode(ParentObject);
+				}
+				
+			}
+		}
+
+		MayaUnrealLiveLinkUtils::RefreshUI();
+	}
+}
 
 /**
 * This function is called by Maya when the plugin becomes loaded
@@ -1323,13 +2546,15 @@ void OnInterval(float ElapsedTime, float LastTime, void* ClientData)
 *
 * @return	MS::kSuccess if everything went OK and the plugin is ready to use
 */
-EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
+MStatus initializePlugin(MObject MayaPluginObject)
 {
+	PluginVersion = TCHAR_TO_ANSI(*FMayaLiveLinkInterfaceModule::GetPluginVersion());
+
 	// Tell Maya about our plugin
 	MFnPlugin MayaPlugin(
 		MayaPluginObject,
-		"MayaUnrealLiveLinkPlugin",
-		PluginVersion);
+		"Autodesk, Inc.",
+		PluginVersion.c_str());
 
 	// Check if another UE version of the plugin is already loaded
 	auto LoadedString = GetEnv(OtherUEVersionLoadedEnvVar);
@@ -1347,17 +2572,13 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 		auto PrevPluginName = MString(LoadedString.c_str());
 		if (MayaPlugin.name() != PrevPluginName)
 		{
-#if UE_5_0_OR_LATER
 			MGlobal::displayWarning("Unable to load Unreal 5.x Live Link for Maya plug-in, because the Unreal 4.27 version of the same plug-in is/was already loaded.");
-#else
-			MGlobal::displayWarning("Unable to load Unreal 4.27 Live Link for Maya plug-in, because the Unreal 5.x version of the same plug-in is/was already loaded.");
-#endif // UE_5_0_OR_LATER
 
 			// Execute the command that will check for the auto-load status, change it for the current plugin and tell the user
 			// that Maya needs to be restarted for the change to take effect.
 			MGlobal::executeCommandOnIdle("MayaLiveLinkNotifyAndQuit \"" + MayaPlugin.name() + "\" \"" + PrevPluginName + "\"", false);
 
-			MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkRefreshUI");
+			MayaUnrealLiveLinkUtils::RefreshUI();
 
 			// Must return success, otherwise we won't be able to set the autoload flag since Maya throws an exception if the plugin is not loaded
 			return MS::kSuccess;
@@ -1373,7 +2594,7 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 
 	UnrealInitializer::TheOne().InitializeUnreal();
 	UnrealInitializer::TheOne().AddMayaOutput(PrintInfoToMaya);
-	UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged);
+	UnrealInitializer::TheOne().StartLiveLink(OnConnectionStatusChanged, OnTimeChangedReceived);
 
 	// We do not tick the core engine but we need to tick the ticker to make sure the message
 	// bus endpoint in LiveLinkProvider is up to date.
@@ -1383,14 +2604,22 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 	MCallbackId MayaExitingCallbackId = MSceneMessage::addCallback(MSceneMessage::kMayaExiting, (MMessage::MBasicFunction)OnMayaExit);
 	myCallbackIds.append(MayaExitingCallbackId);
 
-	MCallbackId ScenePreOpenedCallbackID = MSceneMessage::addCallback(MSceneMessage::kBeforeOpen, (MMessage::MBasicFunction)OnScenePreOpen);
-	myCallbackIds.append(ScenePreOpenedCallbackID);
-
+	MCallbackId ScenePreOpenedCallbackId = MSceneMessage::addCallback(MSceneMessage::kBeforeOpen, (MMessage::MBasicFunction)OnScenePreOpen);
+	myCallbackIds.append(ScenePreOpenedCallbackId);
 	MCallbackId SceneOpenedCallbackId = MSceneMessage::addCallback(MSceneMessage::kAfterOpen, (MMessage::MBasicFunction)OnSceneOpen);
 	myCallbackIds.append(SceneOpenedCallbackId);
 
+	MCallbackId ScenePreNewCallbackId = MSceneMessage::addCallback(MSceneMessage::kBeforeNew, (MMessage::MBasicFunction)OnScenePreNew);
+	myCallbackIds.append(ScenePreNewCallbackId);
+
+	myCallbackIds.append(MSceneMessage::addCallback(MSceneMessage::kBeforeSave, BeforeSaveCallback));
+	myCallbackIds.append(MSceneMessage::addCallback(MSceneMessage::kAfterSave, AfterSaveCallback));
+
 	MCallbackId TimeChangedCallbackId = MDGMessage::addTimeChangeCallback(OnTimeChanged);
 	myCallbackIds.append(TimeChangedCallbackId);
+
+	MCallbackId	PlaybackRangeChangeCallbackId = MEventMessage::addEventCallback("playbackRangeChanged", OnPlaybackRangeChanged);
+	myCallbackIds.append(PlaybackRangeChangeCallbackId);
 
 	MCallbackId AnimCurveEditedCallbackId = MAnimMessage::addAnimCurveEditedCallback(OnAnimCurveEdited);
 	myCallbackIds.append(AnimCurveEditedCallbackId);
@@ -1401,10 +2630,18 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 	MCallbackId timerCallback = MTimerMessage::addTimerCallback(5.f, (MMessage::MElapsedTimeFunction)OnInterval);
 	myCallbackIds.append(timerCallback);
 
+	MCallbackId	CallbackId = MDagMessage::addAllDagChangesCallback(AllDagChangesCallback);
+	myCallbackIds.append(CallbackId);
+
 	MayaPlugin.registerCommand(LiveLinkSubjectNamesCommandName, LiveLinkSubjectNamesCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkSubjectPathsCommandName, LiveLinkSubjectPathsCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkSubjectRolesCommandName, LiveLinkSubjectRolesCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkSubjectTypesCommandName, LiveLinkSubjectTypesCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkSubjectLinkedAssetsCommandName, LiveLinkSubjectLinkedAssetsCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkSubjectTargetAssetsCommandName, LiveLinkSubjectTargetAssetsCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkSubjectLinkStatusCommandName, LiveLinkSubjectLinkStatusCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkSubjectClassesCommandName, LiveLinkSubjectClassesCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkSubjectUnrealNativeClassesCommandName, LiveLinkSubjectUnrealNativeClassesCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkAddSelectionCommandName, LiveLinkAddSelectionCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkRemoveSubjectCommandName, LiveLinkRemoveSubjectCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkChangeSubjectNameCommandName, LiveLinkChangeSubjectNameCommand::creator);
@@ -1425,6 +2662,18 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 	MayaPlugin.registerCommand(LiveLinkGetPluginUpdateUrlCommandName, LiveLinkGetPluginUpdateUrlCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkGetPluginDocumentationUrlCommandName, LiveLinkGetPluginDocumentationUrlCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkOnQuitCommandName, LiveLinkOnQuitCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkGetAssetsByClassCommandName, LiveLinkGetAssetsByClassCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkGetAssetsByParentClassCommandName, LiveLinkGetAssetsByParentClassCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkGetActorsByClassCommandName, LiveLinkGetActorsByClassCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkGetAnimSequencesBySkeletonCommandName, LiveLinkGetAnimSequencesBySkeletonCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkLinkUnrealAssetCommandName, LiveLinkLinkUnrealAssetCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkUnlinkUnrealAssetCommandName, LiveLinkUnlinkUnrealAssetCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkPluginUninitializedCommandName, LiveLinkPluginUninitializedCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkPlayheadSyncCommandName,
+							   LiveLinkPlayheadSyncCommand::creator,
+							   LiveLinkPlayheadSyncCommand::CreateSyntax);
+	MayaPlugin.registerCommand(LiveLinkPauseAnimSyncCommandName, LiveLinkPauseAnimSyncCommand::creator,
+							   LiveLinkPauseAnimSyncCommand::CreateSyntax);
 
 	MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkInitialized");
 
@@ -1435,7 +2684,7 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 
 	RefreshViewportCallbacks();
 
-	MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkRefreshUI");
+	MayaUnrealLiveLinkUtils::RefreshUI();
 
 	const MStatus MayaStatusResult = MS::kSuccess;
 	return MayaStatusResult;
@@ -1449,8 +2698,10 @@ EXTERN_DECL MStatus initializePlugin(MObject MayaPluginObject)
 *
 * @return	MS::kSuccess if everything went OK and the plugin was fully shut down
 */
-EXTERN_DECL MStatus uninitializePlugin(MObject MayaPluginObject)
+MStatus uninitializePlugin(MObject MayaPluginObject)
 {
+	DetectIdleEvent.Release();
+
 	// Get the plugin API for the plugin object
 	MFnPlugin MayaPlugin(MayaPluginObject);
 
@@ -1471,6 +2722,11 @@ EXTERN_DECL MStatus uninitializePlugin(MObject MayaPluginObject)
 	MayaPlugin.deregisterCommand(LiveLinkSubjectPathsCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkSubjectRolesCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkSubjectTypesCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkSubjectLinkedAssetsCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkSubjectTargetAssetsCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkSubjectLinkStatusCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkSubjectClassesCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkSubjectUnrealNativeClassesCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkAddSelectionCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkRemoveSubjectCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkChangeSubjectNameCommandName);
@@ -1490,7 +2746,15 @@ EXTERN_DECL MStatus uninitializePlugin(MObject MayaPluginObject)
 	MayaPlugin.deregisterCommand(LiveLinkGetPluginUpdateUrlCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkGetPluginDocumentationUrlCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkOnQuitCommandName);
-
+	MayaPlugin.deregisterCommand(LiveLinkGetAssetsByClassCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkGetAssetsByParentClassCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkGetActorsByClassCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkGetAnimSequencesBySkeletonCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkLinkUnrealAssetCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkUnlinkUnrealAssetCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkPluginUninitializedCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkPlayheadSyncCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkPauseAnimSyncCommandName);
 
 	ClearViewportCallbacks();
 	if (myCallbackIds.length() != 0)
@@ -1509,7 +2773,7 @@ EXTERN_DECL MStatus uninitializePlugin(MObject MayaPluginObject)
 
 	FTickerTick(1.f);
 
-	MGlobal::executeCommandOnIdle("MayaUnrealLiveLinkRefreshUI");
+	MayaUnrealLiveLinkUtils::RefreshUI();
 
 	const MStatus MayaStatusResult = MS::kSuccess;
 	return MayaStatusResult;
