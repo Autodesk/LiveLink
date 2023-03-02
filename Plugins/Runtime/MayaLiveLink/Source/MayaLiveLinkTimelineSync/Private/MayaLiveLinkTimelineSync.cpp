@@ -63,7 +63,7 @@ void FMayaLiveLinkTimelineSyncModule::StartupModule()
 	bSetGlobalTime = false;
 	bIgnoreTimeChange = false;
 	bBlockTimeChangeFeedback = true;
-	LastFrameTime.Time.FrameNumber.Value = -1;
+	LastFrameTime.Time.FrameNumber.Value = 0;
 
 	// Hook on when the sequencer editor is created
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
@@ -182,7 +182,7 @@ void FMayaLiveLinkTimelineSyncModule::OnSequencerTimeChanged(TWeakPtr<ISequencer
 void FMayaLiveLinkTimelineSyncModule::OnAnimSequenceEditorPreviewSceneCreated(const TSharedRef<IPersonaPreviewScene>& InPreviewScene)
 {
 	bAnimSequenceEditorTimeSync = false;
-	LastFrameTime.Time.FrameNumber = -1;
+	LastFrameTime.Time.FrameNumber = 0;
 	WeakPreviewScene = TWeakPtr<IPersonaPreviewScene>(InPreviewScene);
 
 	// Hook on when the viewport is redrawn

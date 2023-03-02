@@ -57,9 +57,13 @@ Extras/
 
 **/Intermediate/*
 **/Build/*
+**/Installer/*
 
 *.aps
 
 # CMake specific files
 build/*
 .env
+
+# MayaUnrealLiveLinkPluginUI.py is now the result of UE version replacement from MayaUnrealLiveLinkPluginUI.py.in
+Source/Programs/MayaUnrealLiveLinkPlugin/MayaUnrealLiveLinkPluginUI.py
