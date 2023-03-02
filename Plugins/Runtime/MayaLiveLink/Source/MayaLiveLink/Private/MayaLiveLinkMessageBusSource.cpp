@@ -245,7 +245,7 @@ void FMayaLiveLinkMessageBusSource::HandleListAssetsRequest(const FMayaLiveLinkL
 				for (auto& AssetData : OutAssetData)
 				{
 					auto& Class = AssetsByClass.FindOrAdd(AssetData.AssetClassPath.ToString());
-					Class.Array.Add(AssetData.ObjectPath.ToString());
+					Class.Array.Add(AssetData.GetSoftObjectPath().ToString());
 				}
 			}
 		}
@@ -293,7 +293,7 @@ void FMayaLiveLinkMessageBusSource::HandleListAnimSequenceSkeletonRequest(const 
 
 					// Retrieve the list of AnimSequences for this skeleton
 					FStringArray& Class = ReturnMessage->AnimSequencesBySkeleton.FindOrAdd(SkeletonName);
-					FString ObjectPath = AssetData.ObjectPath.ToString();
+					FString ObjectPath = AssetData.GetSoftObjectPath().ToString();
 
 					// Strip the "." part
 					int32 Index = 0;
