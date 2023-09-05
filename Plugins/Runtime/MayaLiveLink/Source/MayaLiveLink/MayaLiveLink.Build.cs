@@ -38,7 +38,7 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"HeadMountedDisplay",
+				"AnimationData",
 				"InputCore",
 				"Media",
 				"Projects",

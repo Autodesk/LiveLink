@@ -516,7 +516,7 @@ void FMayaLiveLinkMessageBusSource::PushStaticDataToAnimSequence(const FName& Su
 	auto& StaticData = *TimelineStaticDataPtr;
 
 	// Push to the static data to generate an animation sequence
-	TArray<int32> BoneTrackRemapping;
+	TArray<FName> BoneTrackRemapping;
 	FString AnimSequenceName;
 	UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(StaticData, BoneTrackRemapping, AnimSequenceName);
 	{
