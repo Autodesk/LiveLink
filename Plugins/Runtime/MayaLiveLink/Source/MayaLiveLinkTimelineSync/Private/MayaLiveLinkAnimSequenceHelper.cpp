@@ -369,10 +369,10 @@ bool UMayaLiveLinkAnimSequenceHelper::StaticUpdateAnimSequence(UAnimSequence& An
 		auto& Controller = AnimSequence.GetController();
 		Controller.RemoveAllCurvesOfType(ERawCurveTrackTypes::RCT_Float);
 		Controller.RemoveAllCurvesOfType(ERawCurveTrackTypes::RCT_Transform);
+		Controller.SetFrameRate(FrameRate);
 		Controller.SetNumberOfFrames(NumberOfFrames);
 		AnimSequence.ImportResampleFramerate = FrameRate.AsDecimal();
 		AnimSequence.ImportFileFramerate = FrameRate.AsDecimal();
-		Controller.SetFrameRate(FrameRate);
 
 		// Trigger a notification to update the target/sampling frame rate used to playback the anim sequence
 		Controller.NotifyPopulated();

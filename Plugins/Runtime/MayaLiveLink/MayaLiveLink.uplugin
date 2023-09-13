@@ -51,6 +51,10 @@
 		{
 			"Name": "SequencerScripting",
 			"Enabled": true
+		},
+		{
+			"Name": "AnimationData",
+			"Enabled": true
 		}
 	]
 }
