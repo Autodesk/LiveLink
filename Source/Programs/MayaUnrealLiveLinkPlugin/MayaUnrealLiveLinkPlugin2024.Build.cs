@@ -22,9 +22,9 @@
 
 using UnrealBuildTool;
 
-public class MayaUnrealLiveLinkPlugin2020 : MayaUnrealLiveLinkPlugin
+public class MayaUnrealLiveLinkPlugin2024 : MayaUnrealLiveLinkPlugin
 {
-	public MayaUnrealLiveLinkPlugin2020(ReadOnlyTargetRules Target) : base(Target, "2020")
+	public MayaUnrealLiveLinkPlugin2024(ReadOnlyTargetRules Target) : base(Target, "2024")
 	{
 	}
 }

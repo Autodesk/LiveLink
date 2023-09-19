@@ -44,6 +44,8 @@
 
 #include "GameFramework/Actor.h"
 
+#include "MovieScene.h"
+
 // Sections
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Sections/MovieSceneBoolSection.h"
