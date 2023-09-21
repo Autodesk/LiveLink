@@ -25,6 +25,7 @@
 #include "MayaLiveLinkUtils.h"
 
 #include "Animation/AnimBlueprint.h"
+#include "Animation/AnimCompress.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSequenceHelpers.h"
 #include "Animation/Skeleton.h"
@@ -34,9 +35,12 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 
+#include "Misc/FeedbackContext.h"
+
 #include "Roles/MayaLiveLinkTimelineTypes.h"
 
 #include "AssetToolsModule.h"
+#include "CoreGlobals.h"
 #include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "MayaLiveLinkAnimSequenceHelper"
@@ -191,6 +195,7 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 				BoneTrackRemapping.Add(BoneName);
 			}
 		}
+
 		Controller.CloseBracket(false);
 	}
 
@@ -282,6 +287,7 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 											   false);
 			}
 		}
+
 		Controller.CloseBracket(false);
 	}
 
@@ -335,6 +341,25 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 				Controller.SetCurveKeys(CurveId, RichCurves, false);
 			}
 		}
+	}
+
+	if (SequenceUpdated)
+	{
+		// Need to start a compression task to update the AnimSequence
+		GWarn->BeginSlowTask(LOCTEXT("AnimCompressing", "Compressing"), true);
+		{
+			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope Scope;
+
+			// Disable the modal summary window
+			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope::CompressionSummary = MakeUnique<FCompressionMemorySummary>(false);
+
+			// Clear CompressCommandletVersion so we can recompress these animations later.
+			AnimSequence->CompressCommandletVersion = 0;
+			AnimSequence->ClearAllCachedCookedPlatformData();
+			AnimSequence->CacheDerivedDataForCurrentPlatform();
+		}
+
+		GWarn->EndSlowTask();
 	}
 
 	FMayaLiveLinkUtils::RefreshContentBrowser(*AnimSequence);
