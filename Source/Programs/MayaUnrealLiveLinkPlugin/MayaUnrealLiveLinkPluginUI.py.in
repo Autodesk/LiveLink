@@ -1068,7 +1068,7 @@ def onSelectionChanged(*args, **kwargs):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
-    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.2.0')
+    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.3.0')
 
     print("LiveLinkUI Init:")
     for Command in Commands:

@@ -25,6 +25,7 @@
 #include "MayaLiveLinkUtils.h"
 
 #include "Animation/AnimBlueprint.h"
+#include "Animation/AnimCompress.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSequenceHelpers.h"
 #include "Animation/Skeleton.h"
@@ -34,9 +35,12 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 
+#include "Misc/FeedbackContext.h"
+
 #include "Roles/MayaLiveLinkTimelineTypes.h"
 
 #include "AssetToolsModule.h"
+#include "CoreGlobals.h"
 #include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "MayaLiveLinkAnimSequenceHelper"
@@ -59,7 +63,7 @@ UMayaLiveLinkAnimSequenceHelper::UMayaLiveLinkAnimSequenceHelper(const FObjectIn
 }
 
 void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLiveLinkAnimSequenceStaticData& StaticData,
-																   TArray<int32>& BoneTrackRemapping,
+																   TArray<FName>& BoneTrackRemapping,
 																   FString& AnimSequenceName)
 {
 	if (StaticData.LinkedAssetPath.IsEmpty() ||
@@ -143,20 +147,26 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 		{
 			for (auto& BoneName : StaticData.BoneNames)
 			{
-				int32 TrackIndex = INDEX_NONE;
 				if (RefSkeleton.FindBoneIndex(BoneName) != INDEX_NONE)
 				{
-					TrackIndex = AnimSequence->GetDataModel()->GetBoneTrackIndexByName(BoneName);
+					bool bValidBone = AnimSequence->GetDataModel()->IsValidBoneTrackName(BoneName);
 
-					if (TrackIndex == INDEX_NONE)
+					if (!bValidBone)
 					{
 						FRawAnimSequenceTrack RawTrack;
 						RawTrack.PosKeys.Init(FVector3f::ZeroVector, NumberOfFrames);
 						RawTrack.RotKeys.Init(FQuat4f::Identity, NumberOfFrames);
 						RawTrack.ScaleKeys.Init(FVector3f::OneVector, NumberOfFrames);
 
-						TrackIndex = Controller.AddBoneTrack(BoneName, false);
-						Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, false);
+						bValidBone = Controller.AddBoneCurve(BoneName, false);
+						if (bValidBone)
+						{
+							Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, false);
+						}
+						else
+						{
+							continue;
+						}
 					}
 
 					FRawAnimSequenceTrack RawTrack;
@@ -182,9 +192,10 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 						Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, false);
 					}
 				}
-				BoneTrackRemapping.Add(TrackIndex);
+				BoneTrackRemapping.Add(BoneName);
 			}
 		}
+
 		Controller.CloseBracket(false);
 	}
 
@@ -218,8 +229,8 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 
 	// Update the baked animation frame for each bone
 	bool SequenceUpdated = false;
-	const auto RawAnimationDataSize = AnimSequence->GetDataModel()->GetBoneAnimationTracks().Num();
 	TMap<FName, FMayaLiveLinkAnimSequenceFrame> FramesByBone;
+	const int32 NumberOfFrames = GetAnimSequenceNumberOfFrames(*AnimSequence);
 	for (int FrameIndex = 0; FrameIndex < FrameData.Frames.Num(); ++FrameIndex)
 	{
 		auto& Frame = FrameData.Frames[FrameIndex];
@@ -231,23 +242,18 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 			{
 				continue;
 			}
-			int32 TrackIndex = TimelineParams.BoneTrackRemapping[BoneIndex];
-			if (TrackIndex >= RawAnimationDataSize || TrackIndex == INDEX_NONE)
+			const FName& TrackName = TimelineParams.BoneTrackRemapping[BoneIndex];
+			if (!TrackName.IsValid())
 			{
 				continue;
 			}
 
-			const auto& TrackData = AnimSequence->GetDataModel()->GetBoneTrackByIndex(TrackIndex);
-			const auto& AnimTrack = TrackData.InternalTrackData;
-
-			if (AnimTrack.PosKeys.Num() > 0 && FrameIndex < AnimTrack.PosKeys.Num() &&
-				AnimTrack.RotKeys.Num() > 0 && FrameIndex < AnimTrack.RotKeys.Num() &&
-				AnimTrack.ScaleKeys.Num() > 0 && FrameIndex < AnimTrack.ScaleKeys.Num())
+			if (NumberOfFrames > 0 && FrameIndex < NumberOfFrames)
 			{
-				auto BoneTrackPtr = FramesByBone.Find(TrackData.Name);
+				auto BoneTrackPtr = FramesByBone.Find(TrackName);
 				if (!BoneTrackPtr)
 				{
-					BoneTrackPtr = &FramesByBone.Emplace(TrackData.Name);
+					BoneTrackPtr = &FramesByBone.Emplace(TrackName);
 					BoneTrackPtr->Locations.Init(FVector::ZeroVector, FrameData.Frames.Num());
 					BoneTrackPtr->Rotations.Init(FQuat::Identity, FrameData.Frames.Num());
 					BoneTrackPtr->Scales.Init(FVector::OneVector, FrameData.Frames.Num());
@@ -281,6 +287,7 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 											   false);
 			}
 		}
+
 		Controller.CloseBracket(false);
 	}
 
@@ -336,6 +343,25 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 		}
 	}
 
+	if (SequenceUpdated)
+	{
+		// Need to start a compression task to update the AnimSequence
+		GWarn->BeginSlowTask(LOCTEXT("AnimCompressing", "Compressing"), true);
+		{
+			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope Scope;
+
+			// Disable the modal summary window
+			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope::CompressionSummary = MakeUnique<FCompressionMemorySummary>(false);
+
+			// Clear CompressCommandletVersion so we can recompress these animations later.
+			AnimSequence->CompressCommandletVersion = 0;
+			AnimSequence->ClearAllCachedCookedPlatformData();
+			AnimSequence->CacheDerivedDataForCurrentPlatform();
+		}
+
+		GWarn->EndSlowTask();
+	}
+
 	FMayaLiveLinkUtils::RefreshContentBrowser(*AnimSequence);
 }
 
@@ -353,6 +379,8 @@ bool UMayaLiveLinkAnimSequenceHelper::StaticUpdateAnimSequence(UAnimSequence& An
 	{
 		AnimSequence.SetSkeleton(Skeleton);
 		Updated = true;
+
+		AnimSequence.GetController().InitializeModel();
 	}
 
 	// Resize the AnimSequence length
@@ -366,10 +394,10 @@ bool UMayaLiveLinkAnimSequenceHelper::StaticUpdateAnimSequence(UAnimSequence& An
 		auto& Controller = AnimSequence.GetController();
 		Controller.RemoveAllCurvesOfType(ERawCurveTrackTypes::RCT_Float);
 		Controller.RemoveAllCurvesOfType(ERawCurveTrackTypes::RCT_Transform);
-		Controller.SetPlayLength(SequenceLength);
+		Controller.SetFrameRate(FrameRate);
+		Controller.SetNumberOfFrames(NumberOfFrames);
 		AnimSequence.ImportResampleFramerate = FrameRate.AsDecimal();
 		AnimSequence.ImportFileFramerate = FrameRate.AsDecimal();
-		Controller.SetFrameRate(FrameRate);
 
 		// Trigger a notification to update the target/sampling frame rate used to playback the anim sequence
 		Controller.NotifyPopulated();

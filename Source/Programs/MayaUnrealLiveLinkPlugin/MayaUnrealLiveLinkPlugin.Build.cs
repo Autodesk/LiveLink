@@ -99,7 +99,17 @@ public class MayaUnrealLiveLinkPlugin : ModuleRules
 				// For GL/gl.h
 				if(IsLinux)
 				{
-					PrivateIncludePaths.Add("/usr/include");
+					// There was some include reordering in UE 5.2 which causes a problem on Linux with cmath.
+					//
+					// Got this fix from EPIC Games to make sure that the custom cmath in ThirdParty is found
+					// before the one in /usr/include.
+					//
+					// This may not be required in 5.3
+					//
+					//PrivateIncludePaths.Add("/usr/include");
+					PublicSystemIncludePaths.Add("ThirdParty/Unix/LibCxx/include");
+					PublicSystemIncludePaths.Add("ThirdParty/Unix/LibCxx/include/c++/v1");
+					PublicSystemIncludePaths.Add("/usr/include");
 				} 
 				else
 				{

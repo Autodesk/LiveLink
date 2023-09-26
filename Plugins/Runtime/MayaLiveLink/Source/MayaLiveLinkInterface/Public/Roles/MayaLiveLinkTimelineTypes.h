@@ -41,7 +41,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkTimelineBaseParams
 
 struct MAYALIVELINKINTERFACE_API FMayaLiveLinkAnimSequenceParams : public FMayaLiveLinkTimelineBaseParams
 {
-	TArray<int32> BoneTrackRemapping;
+	TArray<FName> BoneTrackRemapping;
 	FString FullSequenceName;
 };
 

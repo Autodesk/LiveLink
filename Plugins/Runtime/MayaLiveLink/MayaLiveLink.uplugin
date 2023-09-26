@@ -1,13 +1,13 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "2.2.0",
+	"VersionName": "2.3.0",
 	"FriendlyName": "Maya Live Link",
 	"Description": "Maya Live Link allows streaming of animated data into the Unreal Editor",
 	"Category": "Animation",
 	"CreatedBy": "Autodesk, Inc.",
 	"CreatedByURL": "https://www.autodesk.com",
-	"DocsURL": "https://help.autodesk.com/view/MAYAUL/2023/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html",
+	"DocsURL": "https://help.autodesk.com/view/MAYAUL/2024/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html",
 	"MarketplaceURL": "",
 	"SupportURL": "https://forums.autodesk.com/t5/unreal-live-link-for-maya-forum/bd-p/6143",
 	"CanContainContent": false,
@@ -50,6 +50,10 @@
 		},
 		{
 			"Name": "SequencerScripting",
+			"Enabled": true
+		},
+		{
+			"Name": "AnimationData",
 			"Enabled": true
 		}
 	]

@@ -32,7 +32,7 @@ class UMayaLiveLinkAnimSequenceHelper : public UObject
 	GENERATED_UCLASS_BODY()
 
 	static MAYALIVELINKTIMELINESYNC_API void PushStaticDataToAnimSequence(const struct FMayaLiveLinkAnimSequenceStaticData& StaticData,
-																		  TArray<int32>& BoneTrackRemapping,
+																		  TArray<FName>& BoneTrackRemapping,
 																		  FString& AnimSequenceName);
 	static MAYALIVELINKTIMELINESYNC_API void PushFrameDataToAnimSequence(const struct FMayaLiveLinkAnimSequenceFrameData& FrameData,
 																		 const struct FMayaLiveLinkAnimSequenceParams& TimelineParams);

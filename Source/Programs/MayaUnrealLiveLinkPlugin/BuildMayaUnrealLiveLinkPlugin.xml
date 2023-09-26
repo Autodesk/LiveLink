@@ -2,7 +2,7 @@
 <BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../../../../../Engine/Build/Graph/Schema.xsd" >
 
 	<Option Name="PublishZipDir_Win" DefaultValue="$(RootDir)/LocalBuilds/Engine/WindowsZips" Description="The output directory for published zip artifacts on Windows"/>
-	<Option Name="MayaVersion" Restrict="2020|2022|2023" DefaultValue="2022" Description="Select the maya version"/>
+	<Option Name="MayaVersion" Restrict="2022|2023|2024" DefaultValue="2024" Description="Select the maya version"/>
 	<Option Name="MayaPlatform" Restrict="Win64|Linux" DefaultValue="Win64" Description="Select the platform"/>
 	<Option Name="BuildTarget" Restrict="Debug|Development" DefaultValue="Development" Description="Select the build target"/>
 
