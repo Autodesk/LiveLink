@@ -2478,7 +2478,7 @@ void OnPlaybackRangeChanged(void* ClientData)
 		if (DetectIdleEvent.IsValid())
 		{
 			DetectIdleEvent->Stop();
-			DetectIdleEvent.Release();
+			DetectIdleEvent.Reset();
 		}
 
 		// Start the worker thread that will wait for additional user input before rebuilding the subjects
@@ -2700,7 +2700,7 @@ MStatus initializePlugin(MObject MayaPluginObject)
 */
 MStatus uninitializePlugin(MObject MayaPluginObject)
 {
-	DetectIdleEvent.Release();
+	DetectIdleEvent.Reset();
 
 	// Get the plugin API for the plugin object
 	MFnPlugin MayaPlugin(MayaPluginObject);
