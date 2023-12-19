@@ -22,7 +22,7 @@
 
 #include "MLiveLinkPropSubject.h"
 #include "../MayaLiveLinkStreamManager.h"
-#include "MayaUnrealLiveLinkPlugin/MayaUnrealLiveLinkUtils.h"
+#include "../MayaUnrealLiveLinkUtils.h"
 #include "LiveLinkTypes.h"
 #include "Roles/MayaLiveLinkTimelineTypes.h"
 
