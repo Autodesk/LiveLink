@@ -710,6 +710,21 @@ class MayaUnrealLiveLinkModel():
             pass
 
     @staticmethod
+    def isObjectTransformSyncEnabled():
+        try:
+            return cmds.LiveLinkObjectTransformSync(q=True, enable=True)
+        except:
+            return True
+
+
+    @staticmethod
+    def enableObjectTransformSync(state):
+        try:
+            cmds.LiveLinkObjectTransformSync(enable=state)
+        except:
+            pass
+
+    @staticmethod
     def pauseAnimSeqSync(state):
         try:
             cmds.LiveLinkPauseAnimSync(enable=state)

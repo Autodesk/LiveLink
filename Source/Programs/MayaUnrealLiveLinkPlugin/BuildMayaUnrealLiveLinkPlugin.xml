@@ -14,11 +14,7 @@
 		<Property Name="LocalBinaryDir" Value="$(RootDir)\Engine\Restricted\NotForLicensees\Binaries\$(MayaPlatform)\Maya"/>
 		<Property Name="LocalExtraDir" Value="$(RootDir)\Engine\Restricted\NotForLicensees\Extras\MayaUnrealLiveLinkPlugin"/>
 
-		<Node Name="Compile UnrealHeaderTool Maya">
-			<Compile Target="UnrealHeaderTool" Platform="$(MayaPlatform)" Configuration="$(BuildTarget)" Arguments="-precompile -nodebuginfo"/>
-		</Node>
-
-		<Node Name="Compile Maya $(MayaVersion)" Requires="Compile UnrealHeaderTool Maya">
+		<Node Name="Compile Maya $(MayaVersion)">
 			<Compile Target="MayaUnrealLiveLinkPlugin$(MayaVersion)" Platform="$(MayaPlatform)" Configuration="$(BuildTarget)" Arguments="-noxge"/>
 			<Copy From="$(LocalSourceDir)\MayaUnrealLiveLinkPlugin.mod" To="$(LocalBinaryDir)\MayaUnrealLiveLinkPlugin.mod" />
 		</Node>

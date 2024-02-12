@@ -222,6 +222,15 @@ class UnrealLiveLinkController():
         if self._Model:
             self._Model.enablePlayheadSync(state)
 
+    def isObjectTransformSyncEnabled(self):
+        if self._Model:
+            self._Model.isObjectTransformSyncEnabled(state)
+        return False
+
+    def enableObjectTransformSync(self, state):
+        if self._Model:
+            self._Model.enableObjectTransformSync(state)
+
     def pauseAnimSeqSync(self, state):
         if self._Model:
             self._Model.pauseAnimSeqSync(state)
