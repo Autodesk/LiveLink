@@ -147,9 +147,17 @@ class UnrealLiveLinkWindow(QWidget):
         self.syncTimeAction.setCheckable(True)
         self.syncTimeAction.setChecked(False)
         self.syncTimeAction.triggered.connect(self._enablePlayheadSync)
+        # Sync Object Transform checkbox
+        self._loadObjectTransformSyncPreferences()
+        self.syncObjectTransformAction = QAction('Sync Object Transform', self)
+        self.syncObjectTransformAction.setToolTip('Enable to synchronize Maya object transform with Unreal in real time')
+        self.syncObjectTransformAction.setCheckable(True)
+        self.syncObjectTransformAction.setChecked(self._isObjectTransformSyncEnabled())
+        self.syncObjectTransformAction.triggered.connect(self._enableObjectTransformSync)
         # Add actions to Option Menu
         self.optionsMenu.addAction(self.settingsAction)
         self.optionsMenu.addAction(self.syncTimeAction)
+        self.optionsMenu.addAction(self.syncObjectTransformAction)
         
         # Help Menu
         helpMenu = menuBar.addMenu('Help')
@@ -317,6 +325,7 @@ class UnrealLiveLinkWindow(QWidget):
         if self.table:
             self.table._refreshUI()
         self.syncTimeAction.setChecked(self.Controller.isPlayheadSyncEnabled())
+        self.syncObjectTransformAction.setChecked(self._isObjectTransformSyncEnabled())
 
     def showEvent(self, event):
         unrealVersion = self.Controller.getLoadedUnrealVersion()
@@ -382,6 +391,15 @@ class UnrealLiveLinkWindow(QWidget):
 
     def _enablePlayheadSync(self, state):
         self.Controller.enablePlayheadSync(self.syncTimeAction.isChecked())
+
+    def _enableObjectTransformSync(self, state):
+        self.Controller.enableObjectTransformSync(self.syncObjectTransformAction.isChecked())
+
+    def _isObjectTransformSyncEnabled(self):
+        return self.Controller.isObjectTransformSyncEnabled()
+    
+    def _loadObjectTransformSyncPreferences(self):
+        self.Controller.loadObjectTransformSyncPreferences()
 
     def _pauseAnimSeqSync(self, state):
         self.Controller.pauseAnimSeqSync(self._pauseAnimSyncButtonPauseState)

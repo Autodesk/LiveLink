@@ -1425,6 +1425,57 @@ constexpr char LiveLinkPlayheadSyncCommand::EnableFlag[];
 constexpr char LiveLinkPlayheadSyncCommand::EnableFlagLong[];
 bool LiveLinkPlayheadSyncCommand::bPlayHeadSync = true;
 
+const MString LiveLinkObjectTransformSyncCommandName("LiveLinkObjectTransformSync");
+
+class LiveLinkObjectTransformSyncCommand : public MPxCommand
+{
+	static bool bObjectTransformSync;
+
+public:
+	static constexpr char EnableFlag[] = "en";
+	static constexpr char EnableFlagLong[] = "enable";
+
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkObjectTransformSyncCommand(); }
+
+	static MSyntax CreateSyntax()
+	{
+		MStatus Status;
+		MSyntax Syntax;
+
+		Syntax.enableQuery(true);
+
+		Status = Syntax.addFlag(EnableFlag, EnableFlagLong, MSyntax::kBoolean);
+		CHECK_MSTATUS(Status);
+
+		return Syntax;
+	}
+	MStatus doIt(const MArgList& args) override
+	{
+		MStatus Status;
+		MArgDatabase ArgData(syntax(), args, &Status);
+		CHECK_MSTATUS_AND_RETURN_IT(Status);
+
+		const bool bIsObjectTransformSyncEnabled = ArgData.isFlagSet(EnableFlagLong, &Status);
+		if (ArgData.isQuery())
+		{
+			setResult(bObjectTransformSync);
+		}
+		else
+		{
+			ArgData.getFlagArgument(EnableFlagLong, 0, bObjectTransformSync);
+			setResult(true);
+		}
+
+		return MS::kSuccess;
+	}
+
+	static bool IsEnabled() { return bObjectTransformSync; }
+};
+constexpr char LiveLinkObjectTransformSyncCommand::EnableFlag[];
+constexpr char LiveLinkObjectTransformSyncCommand::EnableFlagLong[];
+bool LiveLinkObjectTransformSyncCommand::bObjectTransformSync = false;
+
 const MString LiveLinkPauseAnimSyncCommandName("LiveLinkPauseAnimSync");
 
 class LiveLinkPauseAnimSyncCommand : public MPxCommand
@@ -1521,17 +1572,18 @@ std::atomic<bool> SendUpdatedData {false};
 // Helper method to send data to unreal when SendUpdatedData is set.
 void StreamDataToUnreal()
 {
-	// Stream data only when this flag is set.
-	if (!SendUpdatedData)
-	{
-		return;
-	}
+	if (!LiveLinkObjectTransformSyncCommand::IsEnabled()) {
+		if (!SendUpdatedData)
+		{
+			return;
+		}
 
-	// Do we need this?
-	if (gTimeChangedReceived)
-	{
-		gTimeChangedReceived = false;
-		return;
+		// Do we need this?
+		if (gTimeChangedReceived)
+		{
+			gTimeChangedReceived = false;
+			return;
+		}
 	}
 
 	auto& StreamManager = MayaLiveLinkStreamManager::TheOne();
@@ -2672,6 +2724,9 @@ MStatus initializePlugin(MObject MayaPluginObject)
 	MayaPlugin.registerCommand(LiveLinkPlayheadSyncCommandName,
 							   LiveLinkPlayheadSyncCommand::creator,
 							   LiveLinkPlayheadSyncCommand::CreateSyntax);
+	MayaPlugin.registerCommand(LiveLinkObjectTransformSyncCommandName,
+							   LiveLinkObjectTransformSyncCommand::creator,
+							   LiveLinkObjectTransformSyncCommand::CreateSyntax);
 	MayaPlugin.registerCommand(LiveLinkPauseAnimSyncCommandName, LiveLinkPauseAnimSyncCommand::creator,
 							   LiveLinkPauseAnimSyncCommand::CreateSyntax);
 

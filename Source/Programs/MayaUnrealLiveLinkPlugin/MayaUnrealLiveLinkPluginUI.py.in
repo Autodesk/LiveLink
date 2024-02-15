@@ -701,13 +701,41 @@ class MayaUnrealLiveLinkModel():
         except:
             return True
 
-
     @staticmethod
     def enablePlayheadSync(state):
         try:
             cmds.LiveLinkPlayheadSync(enable=state)
         except:
             pass
+
+    @staticmethod
+    def saveIsObjectTransformSyncOption(state):
+        cmds.optionVar(init=False, category='Unreal Live Link', intValue=('objectTransformSync', 0))
+        cmds.optionVar(intValue=('objectTransformSync', int(state)))
+
+    @staticmethod
+    def isObjectTransformSyncEnabled():
+        try:
+            return cmds.LiveLinkObjectTransformSync(q=True, enable=True)
+        except:
+            return False
+
+    @staticmethod
+    def enableObjectTransformSync(state):
+        try:
+            cmds.LiveLinkObjectTransformSync(enable=state)
+        except:
+            pass
+
+    @staticmethod
+    def loadObjectTransformSyncPreferences():
+        ObjectTransformSyncOption = cmds.optionVar(exists='objectTransformSync')
+        if ObjectTransformSyncOption:
+            try:
+                state = bool(cmds.optionVar(query='objectTransformSync'))
+                cmds.LiveLinkObjectTransformSync(enable=state)
+            except:
+                pass
 
     @staticmethod
     def pauseAnimSeqSync(state):
