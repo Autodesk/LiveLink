@@ -22,6 +22,8 @@
 
 import os
 
+usingPyside6 = False
+
 try:
   from PySide2.QtCore import *
   from PySide2.QtGui import *
@@ -29,10 +31,18 @@ try:
   from PySide2 import __version__
   import PySide2.QtCore
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
-  import PySide.QtCore
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+        import PySide.QtCore
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
+        import PySide6.QtCore
+        usingPyside6 = True
 
 from UnrealLiveLinkSubjectTable import *
 from UnrealLiveLinkSettings import *
@@ -129,7 +139,8 @@ class UnrealLiveLinkWindow(QWidget):
         self.connectionFrame = QLabel()
         self.connectionFrame.setTextFormat(Qt.RichText)
         self.connectionFrame.setText('<b>No Connection</b>')
-        self.connectionFrame.setMargin(0)
+        if not usingPyside6:
+            self.connectionFrame.setMargin(0)
         self.connectionFrame.setContentsMargins(5,3,0,0)
 
         # Menu bar
@@ -147,9 +158,17 @@ class UnrealLiveLinkWindow(QWidget):
         self.syncTimeAction.setCheckable(True)
         self.syncTimeAction.setChecked(False)
         self.syncTimeAction.triggered.connect(self._enablePlayheadSync)
+        # Sync Object Transform checkbox
+        self._loadObjectTransformSyncPreferences()
+        self.syncObjectTransformAction = QAction('Sync Object Transform', self)
+        self.syncObjectTransformAction.setToolTip('Enable to synchronize Maya object transform with Unreal in real time')
+        self.syncObjectTransformAction.setCheckable(True)
+        self.syncObjectTransformAction.setChecked(self._isObjectTransformSyncEnabled())
+        self.syncObjectTransformAction.triggered.connect(self._enableObjectTransformSync)
         # Add actions to Option Menu
         self.optionsMenu.addAction(self.settingsAction)
         self.optionsMenu.addAction(self.syncTimeAction)
+        self.optionsMenu.addAction(self.syncObjectTransformAction)
         
         # Help Menu
         helpMenu = menuBar.addMenu('Help')
@@ -174,7 +193,8 @@ class UnrealLiveLinkWindow(QWidget):
 
         # Menu bar layout
         menuBarLayout = QHBoxLayout()
-        menuBarLayout.setMargin(0)
+        if not usingPyside6:
+           menuBarLayout.setMargin(0)
         menuBarLayout.setContentsMargins(0,0,0,0)
         menuBarLayout.setSpacing(0)
 
@@ -317,6 +337,7 @@ class UnrealLiveLinkWindow(QWidget):
         if self.table:
             self.table._refreshUI()
         self.syncTimeAction.setChecked(self.Controller.isPlayheadSyncEnabled())
+        self.syncObjectTransformAction.setChecked(self._isObjectTransformSyncEnabled())
 
     def showEvent(self, event):
         unrealVersion = self.Controller.getLoadedUnrealVersion()
@@ -382,6 +403,15 @@ class UnrealLiveLinkWindow(QWidget):
 
     def _enablePlayheadSync(self, state):
         self.Controller.enablePlayheadSync(self.syncTimeAction.isChecked())
+
+    def _enableObjectTransformSync(self, state):
+        self.Controller.enableObjectTransformSync(self.syncObjectTransformAction.isChecked())
+
+    def _isObjectTransformSyncEnabled(self):
+        return self.Controller.isObjectTransformSyncEnabled()
+    
+    def _loadObjectTransformSyncPreferences(self):
+        self.Controller.loadObjectTransformSyncPreferences()
 
     def _pauseAnimSeqSync(self, state):
         self.Controller.pauseAnimSeqSync(self._pauseAnimSyncButtonPauseState)

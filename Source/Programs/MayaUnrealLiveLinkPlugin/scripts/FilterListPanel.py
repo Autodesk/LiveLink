@@ -20,15 +20,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+usingPyside6 = False
+
 try:
   from PySide2.QtCore import *
   from PySide2.QtGui import *
   from PySide2.QtWidgets import *
   from PySide2 import __version__
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
+        usingPyside6 = True
 
 from HoverButton import *
 
@@ -82,7 +91,10 @@ class FilterListPanel(QWidget):
 
         # Layout
         layout = QVBoxLayout()
-        layout.setMargin(0)
+        if usingPyside6:
+            layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            layout.setMargin(0)
         layout.setSpacing(2)
 
         # Label

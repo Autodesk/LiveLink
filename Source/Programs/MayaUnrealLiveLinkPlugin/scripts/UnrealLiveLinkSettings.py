@@ -20,15 +20,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+usingPyside6 = False
+
 try:
   from PySide2.QtCore import *
   from PySide2.QtGui import *
   from PySide2.QtWidgets import *
   from PySide2 import __version__
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
+        usingPyside6 = True
 
 from UnrealLiveLinkSettingsNetwork import UnrealLiveLinkSettingsNetwork
 
@@ -74,7 +83,10 @@ class UnrealLiveLinkSettings(QDialog):
         label.setTextFormat(Qt.RichText)
         label.setText('<b>Categories</b>')
         label.setStyleSheet(self.labelStyle)
-        label.setMargin(4)
+        if usingPyside6:
+            label.setContentsMargins(4, 4, 4, 4)
+        else:
+            label.setMargin(4)
         categoryLayout.addWidget(label)
         self.categoryTreeWidget = QTreeWidget()
         self.categoryTreeWidget.setHeaderHidden(True)

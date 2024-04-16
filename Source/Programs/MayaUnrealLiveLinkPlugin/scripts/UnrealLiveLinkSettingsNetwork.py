@@ -26,9 +26,15 @@ try:
   from PySide2.QtWidgets import *
   from PySide2 import __version__
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
 
 from IPAddressLineEdit import IPAddressLineEdit
 

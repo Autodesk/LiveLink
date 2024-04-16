@@ -1,11 +1,11 @@
-Unreal® Live Link for Autodesk ® Maya ® 2.3.0
+Unrealï¿½ Live Link for Autodesk ï¿½ Maya ï¿½ 2.4.0
 
-© 2022 Autodesk, Inc.  All rights reserved.
+ï¿½ 2022 Autodesk, Inc.  All rights reserved.
 
-All use of this Software is subject to the terms and conditions of the Autodesk license agreement accepted upon installation of this Software and/or packaged with the Software.  Autodesk software license agreements for Autodesk’s various products can be found here: http://www.autodesk.com/company/legal-notices-trademarks/software-license-agreements.
+All use of this Software is subject to the terms and conditions of the Autodesk license agreement accepted upon installation of this Software and/or packaged with the Software.  Autodesk software license agreements for Autodeskï¿½s various products can be found here: http://www.autodesk.com/company/legal-notices-trademarks/software-license-agreements.
 
 Privacy
-To learn more about Autodesk’s online and offline privacy practices, please see the Autodesk Privacy Statement (http://www.autodesk.com/company/legal-notices-trademarks/privacy-statement).
+To learn more about Autodeskï¿½s online and offline privacy practices, please see the Autodesk Privacy Statement (http://www.autodesk.com/company/legal-notices-trademarks/privacy-statement).
 
 Autodesk Trademarks
 The trademarks on the Autodesk Trademarks page (http://www.autodesk.com/company/legal-notices-trademarks/trademarks/autodesk-inc) are registered trademarks or trademarks of Autodesk, Inc., and/or its subsidiaries and/or affiliates in the USA and/or other countries.  
@@ -16,15 +16,15 @@ Patents
 This Product or Service is protected by patents listed on the Autodesk Patents page (https://www.autodesk.com/company/legal-notices-trademarks/patents).
 
 Autodesk Cloud and Desktop Components
-This Product or Service may incorporate or use background Autodesk online and desktop technology components.  For information about these components, see Autodesk Cloud Platform Components (https://www.autodesk.com/company/legal-notices-trademarks/autodesk-cloud-platform-components) and Autodesk Desktop Platform Components (https://www.autodesk.com/company/legal-notices-trademarks/autodesk-desktop-platform-components).
+This Product or Service may incorporate or use background Autodesk online and desktop technology components.ï¿½ For information about these components, see Autodesk Cloud Platform Components (https://www.autodesk.com/company/legal-notices-trademarks/autodesk-cloud-platform-components) and Autodesk Desktop Platform Components (https://www.autodesk.com/company/legal-notices-trademarks/autodesk-desktop-platform-components).
 
 
 Third-Party Trademarks, Software Credits and Attributions
 
-Unreal® Engine:
-Unreal® Engine. Unreal® is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere
+Unrealï¿½ Engine:
+Unrealï¿½ Engine. Unrealï¿½ is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere
 
-Unreal® Engine, Copyright 1998 – 2021, Epic Games, Inc. All rights reserved. 
+Unrealï¿½ Engine, Copyright 1998 ï¿½ 2021, Epic Games, Inc. All rights reserved. 
 
 MayaLiveLink:
 Copyright (c) 2019 UE4 Epic Games.
