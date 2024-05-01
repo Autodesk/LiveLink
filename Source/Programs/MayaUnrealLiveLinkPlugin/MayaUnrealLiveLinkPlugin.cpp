@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <chrono>
 
 #include "RequiredProgramMainCPPInclude.h"
 
@@ -36,6 +37,7 @@
 #include "UnrealInitializer/UnrealInitializer.h"
 
 #include <thread>
+#include <unordered_map>
 
 IMPLEMENT_APPLICATION(MayaUnrealLiveLinkPlugin, "MayaUnrealLiveLinkPlugin");
 
@@ -1329,7 +1331,7 @@ public:
 
 	MStatus			doIt(const MArgList& args) override
 	{
-		appendToResult(MString("https://help.autodesk.com/view/MAYAUL/2024/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html"));
+		appendToResult(MString("https://help.autodesk.com/view/MAYAUL/2025/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html"));
 
 		return MS::kSuccess;
 	}
@@ -1425,6 +1427,57 @@ constexpr char LiveLinkPlayheadSyncCommand::EnableFlag[];
 constexpr char LiveLinkPlayheadSyncCommand::EnableFlagLong[];
 bool LiveLinkPlayheadSyncCommand::bPlayHeadSync = true;
 
+const MString LiveLinkObjectTransformSyncCommandName("LiveLinkObjectTransformSync");
+
+class LiveLinkObjectTransformSyncCommand : public MPxCommand
+{
+	static bool bObjectTransformSync;
+
+public:
+	static constexpr char EnableFlag[] = "en";
+	static constexpr char EnableFlagLong[] = "enable";
+
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkObjectTransformSyncCommand(); }
+
+	static MSyntax CreateSyntax()
+	{
+		MStatus Status;
+		MSyntax Syntax;
+
+		Syntax.enableQuery(true);
+
+		Status = Syntax.addFlag(EnableFlag, EnableFlagLong, MSyntax::kBoolean);
+		CHECK_MSTATUS(Status);
+
+		return Syntax;
+	}
+	MStatus doIt(const MArgList& args) override
+	{
+		MStatus Status;
+		MArgDatabase ArgData(syntax(), args, &Status);
+		CHECK_MSTATUS_AND_RETURN_IT(Status);
+
+		const bool bIsObjectTransformSyncEnabled = ArgData.isFlagSet(EnableFlagLong, &Status);
+		if (ArgData.isQuery())
+		{
+			setResult(bObjectTransformSync);
+		}
+		else
+		{
+			ArgData.getFlagArgument(EnableFlagLong, 0, bObjectTransformSync);
+			setResult(true);
+		}
+
+		return MS::kSuccess;
+	}
+
+	static bool IsEnabled() { return bObjectTransformSync; }
+};
+constexpr char LiveLinkObjectTransformSyncCommand::EnableFlag[];
+constexpr char LiveLinkObjectTransformSyncCommand::EnableFlagLong[];
+bool LiveLinkObjectTransformSyncCommand::bObjectTransformSync = false;
+
 const MString LiveLinkPauseAnimSyncCommandName("LiveLinkPauseAnimSync");
 
 class LiveLinkPauseAnimSyncCommand : public MPxCommand
@@ -1517,22 +1570,31 @@ MTime::Unit CurrentTimeUnit = MTime::kInvalid;
 bool gTimeChangedReceived = false;
 FQualifiedFrameTime TimeReceived;
 std::atomic<bool> SendUpdatedData {false};
+std::atomic<bool> IsManipulationComplete { false };
+std::chrono::steady_clock::time_point LastSendTime;
+const int MinTimeIntervalMs = 50;
 
 // Helper method to send data to unreal when SendUpdatedData is set.
 void StreamDataToUnreal()
 {
-	// Stream data only when this flag is set.
-	if (!SendUpdatedData)
-	{
+	if (!LiveLinkObjectTransformSyncCommand::IsEnabled() && !SendUpdatedData) {
 		return;
 	}
 
-	// Do we need this?
 	if (gTimeChangedReceived)
 	{
 		gTimeChangedReceived = false;
 		return;
 	}
+
+	auto Now = std::chrono::high_resolution_clock::now();
+	auto TimeElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Now - LastSendTime).count();
+	
+	if(!SendUpdatedData && TimeElapsed < MinTimeIntervalMs && !IsManipulationComplete)
+		return;
+
+	IsManipulationComplete = false;
+	LastSendTime = Now;
 
 	auto& StreamManager = MayaLiveLinkStreamManager::TheOne();
 	auto TimeUnit = MAnimControl::currentTime().unit();
@@ -1584,10 +1646,28 @@ void StreamOnIdleTask(void* ClientData)
 		return;
 	}
 
-	std::shared_ptr<IMStreamedEntity> Subject = *static_cast<std::shared_ptr<IMStreamedEntity>*>(ClientData);
+	IsManipulationComplete = true;
+
+	// In some situations (such as manipulating an HIK Effector in Full Body mode), a lot of Attributes can be
+	// changing at once, and each of those attribute changes registers for an Idle callback. This results in 
+	// lots of sends for the same Subject at one time. This map protects against that by not sending it again
+	// for the same Subject if we sent very recently.
+	static std::unordered_map<void*, double> s_mostRecentSends;
 	double StreamTime = FPlatformTime::Seconds();
+
+	std::shared_ptr<IMStreamedEntity> Subject = *static_cast<std::shared_ptr<IMStreamedEntity>*>(ClientData);
+
+	auto it = s_mostRecentSends.find(ClientData);
+	if (it != s_mostRecentSends.end())
+	{
+		if (StreamTime - it->second < (1.0 / static_cast<double>(MinTimeIntervalMs)))
+			return;
+	}
+
 	auto FrameNumber = MAnimControl::currentTime().value();
 	Subject->OnStream(StreamTime, FrameNumber);
+
+	s_mostRecentSends[ClientData] = StreamTime;
 }
 
 void StreamOnIdle(std::shared_ptr<IMStreamedEntity>& Subject, MGlobal::MIdleTaskPriority Priority)
@@ -2478,7 +2558,7 @@ void OnPlaybackRangeChanged(void* ClientData)
 		if (DetectIdleEvent.IsValid())
 		{
 			DetectIdleEvent->Stop();
-			DetectIdleEvent.Release();
+			DetectIdleEvent.Reset();
 		}
 
 		// Start the worker thread that will wait for additional user input before rebuilding the subjects
@@ -2672,6 +2752,9 @@ MStatus initializePlugin(MObject MayaPluginObject)
 	MayaPlugin.registerCommand(LiveLinkPlayheadSyncCommandName,
 							   LiveLinkPlayheadSyncCommand::creator,
 							   LiveLinkPlayheadSyncCommand::CreateSyntax);
+	MayaPlugin.registerCommand(LiveLinkObjectTransformSyncCommandName,
+							   LiveLinkObjectTransformSyncCommand::creator,
+							   LiveLinkObjectTransformSyncCommand::CreateSyntax);
 	MayaPlugin.registerCommand(LiveLinkPauseAnimSyncCommandName, LiveLinkPauseAnimSyncCommand::creator,
 							   LiveLinkPauseAnimSyncCommand::CreateSyntax);
 
@@ -2700,7 +2783,7 @@ MStatus initializePlugin(MObject MayaPluginObject)
 */
 MStatus uninitializePlugin(MObject MayaPluginObject)
 {
-	DetectIdleEvent.Release();
+	DetectIdleEvent.Reset();
 
 	// Get the plugin API for the plugin object
 	MFnPlugin MayaPlugin(MayaPluginObject);

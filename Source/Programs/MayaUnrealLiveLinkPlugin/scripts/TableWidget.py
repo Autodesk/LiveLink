@@ -22,15 +22,24 @@
 
 import weakref
 
+usingPyside6 = False
+
 try:
   from PySide2.QtCore import *
   from PySide2.QtGui import *
   from PySide2.QtWidgets import *
   from PySide2 import __version__
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
+        usingPyside6 = True
 
 class TableWidget(QTableWidget):
     def __init__(self, rows, columns, parent=None):
@@ -45,7 +54,12 @@ class TableWidget(QTableWidget):
 
         painter = QPainter(self.viewport())
         option = QStyleOptionViewItem()
-        option.init(self)
+        if usingPyside6:
+            option.font = self.font()
+            option.rect = self.rect()
+            option.palette = self.palette()
+        else:
+            option.init(self)
         gridPen = QPen(self.gridColor, 0, self.gridStyle())
         painter.setPen(gridPen);
 

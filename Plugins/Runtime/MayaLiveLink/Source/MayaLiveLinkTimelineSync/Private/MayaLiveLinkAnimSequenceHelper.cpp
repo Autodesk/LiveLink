@@ -54,7 +54,28 @@ namespace
 
 	int32 GetAnimSequenceNumberOfFrames(const UAnimSequence& AnimSequence)
 	{
-		return AnimSequence.GetDataModel()->GetNumberOfKeys();
+		return AnimSequence.GetDataModel()->GetNumberOfFrames();
+	}
+
+	void RandomizeVector3Array(TArray<FVector3f>& VecArray)
+	{
+		for (auto& k : VecArray)
+		{
+			k.X = FMath::FRand();
+			k.Y = FMath::FRand();
+			k.Z = FMath::FRand();
+		}
+	}
+
+	void RandomizeQuaternionArray(TArray<FQuat4f>& QuatArray)
+	{
+		for (auto& k : QuatArray)
+		{
+			k.X = FMath::FRand();
+			k.Y = FMath::FRand();
+			k.Z = FMath::FRand();
+			k.W = FMath::FRand();
+		}
 	}
 }
 
@@ -158,6 +179,21 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 						RawTrack.RotKeys.Init(FQuat4f::Identity, NumberOfFrames);
 						RawTrack.ScaleKeys.Init(FVector3f::OneVector, NumberOfFrames);
 
+						// NOTE: When we call SetBoneTrackKeys below, we are populating it with uniform "Identity" data for all
+						//       keys. Unreal is detecting that the data is uniform and is optimizing it to a single DefaultValue
+						//		 internally. This is fine in principle. However, there is a bug in Unreal 5.2 and 5.3 (and possibly 
+						//       earlier) that prevents this DefaultValue flag/optimization to be cleared when we later populate
+						//       the bone track with "real" (non-uniform) data, when we start receiving values from Maya. Epic are
+						//       aware of this bug and a fix will likely make it into a later version of Unreal.
+						// 
+						//		 To avoid the optimization from kicking in in the first place, we are randomizing the initial data,
+						//		 so it no longer looks uniform. Since we'll be replacing it all with messages received from Maya,
+						//		 anyway, this is fine for the time being.
+						//       
+						RandomizeVector3Array(RawTrack.PosKeys);
+						RandomizeQuaternionArray(RawTrack.RotKeys);
+						RandomizeVector3Array(RawTrack.ScaleKeys);
+
 						bValidBone = Controller.AddBoneCurve(BoneName, false);
 						if (bValidBone)
 						{
@@ -175,16 +211,22 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 					{
 						ResizeSequenceRequested = true;
 						RawTrack.PosKeys.Init(FVector3f::ZeroVector, NumberOfFrames);
+						// NOTE: See comment above for an explanation of why this is needed
+						RandomizeVector3Array(RawTrack.PosKeys); 
 					}
 					if (NumberOfFrames != RawTrack.RotKeys.Num())
 					{
 						ResizeSequenceRequested = true;
 						RawTrack.RotKeys.Init(FQuat4f::Identity, NumberOfFrames);
+						// NOTE: See comment above for an explanation of why this is needed
+						RandomizeQuaternionArray(RawTrack.RotKeys);
 					}
 					if (NumberOfFrames != RawTrack.ScaleKeys.Num())
 					{
 						ResizeSequenceRequested = true;
 						RawTrack.ScaleKeys.Init(FVector3f::OneVector, NumberOfFrames);
+						// NOTE: See comment above for an explanation of why this is needed
+						RandomizeVector3Array(RawTrack.ScaleKeys);
 					}
 
 					if (ResizeSequenceRequested)
@@ -307,59 +349,35 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 			const FString& CurveName = CurvePair.Key;
 			const FMayaLiveLinkCurve& Curve = CurvePair.Value;
 
-			FSmartName SmartName;
 			FName CurveFName(*CurveName);
-			AnimSequence->GetSkeleton()->GetSmartNameByName(ContainerName, CurveFName, SmartName);
 
-			if (SmartName.IsValid())
+			FAnimationCurveIdentifier CurveId(CurveFName, ERawCurveTrackTypes::RCT_Float);
+			const FAnimCurveBase* RichCurve = Controller.GetModel()->FindCurve(CurveId);
+			if (!RichCurve)
 			{
-				FAnimationCurveIdentifier CurveId(SmartName, ERawCurveTrackTypes::RCT_Float);
-				const FAnimCurveBase* RichCurve = Controller.GetModel()->FindCurve(CurveId);
-				if (!RichCurve)
-				{
-					Controller.AddCurve(CurveId, EAnimAssetCurveFlags::AACF_Editable, false);
-				}
-
-				TArray<FRichCurveKey> RichCurves;
-
-				for (const auto& KeyPair : Curve.KeyFrames)
-				{
-					const auto& Value = KeyPair.Value;
-					FRichCurveKey CurveKey;
-					CurveKey.Time = KeyPair.Key * Interval;
-					CurveKey.Value = Value.Value;
-					CurveKey.ArriveTangent = FMath::RadiansToDegrees(Value.TangentAngleIn) * 0.5f;
-					CurveKey.ArriveTangentWeight = Value.TangentWeightIn;
-					CurveKey.LeaveTangent = FMath::RadiansToDegrees(Value.TangentAngleOut) * 0.5f;
-					CurveKey.LeaveTangentWeight = Value.TangentWeightOut;
-					CurveKey.InterpMode = static_cast<ERichCurveInterpMode>(Value.InterpMode.GetValue());
-					CurveKey.TangentMode = static_cast<ERichCurveTangentMode>(Value.TangentMode.GetValue());
-					CurveKey.TangentWeightMode = static_cast<ERichCurveTangentWeightMode>(Value.TangentWeightMode.GetValue());
-					RichCurves.Emplace(MoveTemp(CurveKey));
-				}
-
-				Controller.SetCurveKeys(CurveId, RichCurves, false);
+				Controller.AddCurve(CurveId, EAnimAssetCurveFlags::AACF_Editable, false);
 			}
+
+			TArray<FRichCurveKey> RichCurves;
+
+			for (const auto& KeyPair : Curve.KeyFrames)
+			{
+				const auto& Value = KeyPair.Value;
+				FRichCurveKey CurveKey;
+				CurveKey.Time = KeyPair.Key * Interval;
+				CurveKey.Value = Value.Value;
+				CurveKey.ArriveTangent = FMath::RadiansToDegrees(Value.TangentAngleIn) * 0.5f;
+				CurveKey.ArriveTangentWeight = Value.TangentWeightIn;
+				CurveKey.LeaveTangent = FMath::RadiansToDegrees(Value.TangentAngleOut) * 0.5f;
+				CurveKey.LeaveTangentWeight = Value.TangentWeightOut;
+				CurveKey.InterpMode = static_cast<ERichCurveInterpMode>(Value.InterpMode.GetValue());
+				CurveKey.TangentMode = static_cast<ERichCurveTangentMode>(Value.TangentMode.GetValue());
+				CurveKey.TangentWeightMode = static_cast<ERichCurveTangentWeightMode>(Value.TangentWeightMode.GetValue());
+				RichCurves.Emplace(MoveTemp(CurveKey));
+			}
+
+			Controller.SetCurveKeys(CurveId, RichCurves, false);
 		}
-	}
-
-	if (SequenceUpdated)
-	{
-		// Need to start a compression task to update the AnimSequence
-		GWarn->BeginSlowTask(LOCTEXT("AnimCompressing", "Compressing"), true);
-		{
-			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope Scope;
-
-			// Disable the modal summary window
-			UE::Anim::Compression::FAnimationCompressionMemorySummaryScope::CompressionSummary = MakeUnique<FCompressionMemorySummary>(false);
-
-			// Clear CompressCommandletVersion so we can recompress these animations later.
-			AnimSequence->CompressCommandletVersion = 0;
-			AnimSequence->ClearAllCachedCookedPlatformData();
-			AnimSequence->CacheDerivedDataForCurrentPlatform();
-		}
-
-		GWarn->EndSlowTask();
 	}
 
 	FMayaLiveLinkUtils::RefreshContentBrowser(*AnimSequence);

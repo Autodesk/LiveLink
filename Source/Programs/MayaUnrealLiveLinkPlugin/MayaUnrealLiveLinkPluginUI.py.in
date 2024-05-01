@@ -62,10 +62,18 @@ if IsAutomatedTest is None:
     try:
       from shiboken2 import wrapInstance
     except ImportError:
-      from shiboken import wrapInstance
-    from PySide2.QtWidgets import QWidget, QVBoxLayout
-    from PySide2.QtCore import QUrl, QJsonDocument, QJsonArray, QProcess
-    from PySide2.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkSession, QNetworkConfigurationManager, QNetworkReply
+        try:
+            from shiboken import wrapInstance
+        except ImportError:
+            from shiboken6 import wrapInstance
+    try:
+        from PySide2.QtWidgets import QWidget, QVBoxLayout
+        from PySide2.QtCore import QUrl, QJsonDocument, QJsonArray, QProcess
+        from PySide2.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkSession, QNetworkConfigurationManager, QNetworkReply
+    except ImportError:
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+        from PySide6.QtCore import QUrl, QJsonDocument, QJsonArray, QProcess
+        from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 else:
     # Create dummy classes when running automated tests
     class MayaQWidgetDockableMixin():
@@ -701,13 +709,41 @@ class MayaUnrealLiveLinkModel():
         except:
             return True
 
-
     @staticmethod
     def enablePlayheadSync(state):
         try:
             cmds.LiveLinkPlayheadSync(enable=state)
         except:
             pass
+
+    @staticmethod
+    def saveIsObjectTransformSyncOption(state):
+        cmds.optionVar(init=False, category='Unreal Live Link', intValue=('objectTransformSync', 0))
+        cmds.optionVar(intValue=('objectTransformSync', int(state)))
+
+    @staticmethod
+    def isObjectTransformSyncEnabled():
+        try:
+            return cmds.LiveLinkObjectTransformSync(q=True, enable=True)
+        except:
+            return False
+
+    @staticmethod
+    def enableObjectTransformSync(state):
+        try:
+            cmds.LiveLinkObjectTransformSync(enable=state)
+        except:
+            pass
+
+    @staticmethod
+    def loadObjectTransformSyncPreferences():
+        ObjectTransformSyncOption = cmds.optionVar(exists='objectTransformSync')
+        if ObjectTransformSyncOption:
+            try:
+                state = bool(cmds.optionVar(query='objectTransformSync'))
+                cmds.LiveLinkObjectTransformSync(enable=state)
+            except:
+                pass
 
     @staticmethod
     def pauseAnimSeqSync(state):
@@ -1068,7 +1104,7 @@ def onSelectionChanged(*args, **kwargs):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
-    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.3.0')
+    mplugin = OpenMayaMPx.MFnPlugin(mobject, 'Autodesk, Inc.', 'v2.4.0')
 
     print("LiveLinkUI Init:")
     for Command in Commands:

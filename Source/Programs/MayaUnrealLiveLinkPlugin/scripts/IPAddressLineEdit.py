@@ -20,18 +20,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+usingPyside6 = False
+
 try:
   from PySide2.QtCore import *
   from PySide2.QtGui import *
   from PySide2.QtWidgets import *
   from PySide2 import __version__
 except ImportError:
-  from PySide.QtCore import *
-  from PySide.QtGui import *
-  from PySide import __version__
+    try:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        from PySide import __version__
+    except ImportError:
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtWidgets import *
+        from PySide6 import __version__
+        usingPyside6 = True
 
 class IPAddressLineEdit(QLineEdit):
-    class IPAddressRegExpValidator(QRegExpValidator):
+    parent = None
+    regexp = None
+    if usingPyside6:
+        parent = QRegularExpressionValidator
+        regexp = QRegularExpression
+    else:
+        parent = QRegExpValidator
+        regexp = QRegExp
+
+    class IPAddressRegExpValidator(parent):
         validationChanged = Signal(QValidator.State)
 
         def validate(self, input, pos):
@@ -44,7 +62,7 @@ class IPAddressLineEdit(QLineEdit):
 
     _ipRange = "(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])"   # Part of the regular expression
     _portRange = "([0-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])"
-    _ipRegex = QRegExp("^" + _ipRange + "\\." + _ipRange + "\\." + _ipRange + "\\." + _ipRange + ":" + _portRange + "$|0.0.0.0:0")
+    _ipRegex = regexp("^" + _ipRange + "\\." + _ipRange + "\\." + _ipRange + "\\." + _ipRange + ":" + _portRange + "$|0.0.0.0:0")
 
     def __init__(self, contents='', parent=None):
         super(IPAddressLineEdit, self).__init__(contents, parent)
