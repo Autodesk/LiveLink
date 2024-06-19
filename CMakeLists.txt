@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(MayaLiveLink NONE) # Enable no language.
 
-set(MAYA_VERSIONS 2022 2023 2024)
+set(MAYA_VERSIONS 2022 2023 2024 2025)
 if(WIN32)
     set(Platform Win64)
     set(Extension .mll)

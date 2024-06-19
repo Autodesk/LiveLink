@@ -205,6 +205,14 @@ class UnrealLiveLinkController():
         if self._Model:
             self._Model.unlinkAsset(subjectPath)
 
+    def bakeAsset(self, subjectPath):
+        if self._Model:
+            self._Model.bakeAsset(subjectPath)
+
+    def unbakeAsset(self, subjectPath):
+        if self._Model:
+            self._Model.unbakeAsset(subjectPath)
+
     def setLinkProgress(self, value, visible):
         if self._Window:
             self._Window.setLinkProgress(value, visible)

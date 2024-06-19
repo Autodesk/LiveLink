@@ -864,6 +864,54 @@ public:
 	}
 };
 
+const MString LiveLinkBakeUnrealAssetCommandName("LiveLinkBakeUnrealAsset");
+
+class LiveLinkBakeUnrealAssetCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkBakeUnrealAssetCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString SubjectPath;
+		argData.getCommandArgument(0, SubjectPath);
+
+		MayaLiveLinkStreamManager::TheOne().BakeUnrealAsset(SubjectPath);
+
+		return MS::kSuccess;
+	}
+};
+
+const MString LiveLinkUnbakeUnrealAssetCommandName("LiveLinkUnbakeUnrealAsset");
+
+class LiveLinkUnbakeUnrealAssetCommand : public MPxCommand
+{
+public:
+	static void		cleanup() {}
+	static void*	creator() { return new LiveLinkUnbakeUnrealAssetCommand(); }
+
+	MStatus			doIt(const MArgList& args) override
+	{
+		MSyntax Syntax;
+		Syntax.addArg(MSyntax::kString);
+
+		MArgDatabase argData(Syntax, args);
+
+		MString SubjectPath;
+		argData.getCommandArgument(0, SubjectPath);
+
+		MayaLiveLinkStreamManager::TheOne().UnbakeUnrealAsset(SubjectPath);
+
+		return MS::kSuccess;
+	}
+};
+
 class LiveLinkMessagingSettingsCommand : public MPxCommand
 {
 public:
@@ -1577,7 +1625,8 @@ const int MinTimeIntervalMs = 50;
 // Helper method to send data to unreal when SendUpdatedData is set.
 void StreamDataToUnreal()
 {
-	if (!LiveLinkObjectTransformSyncCommand::IsEnabled() && !SendUpdatedData) {
+	if (!LiveLinkObjectTransformSyncCommand::IsEnabled() && !SendUpdatedData) 
+	{
 		return;
 	}
 
@@ -1930,7 +1979,17 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 						}
 					}
 
-					if (Node.hasFn(MFn::kDagNode))
+					if (Node.hasFn(MFn::kBlendShape))
+					{
+						MFnBlendShapeDeformer BlendShape(Node);
+						IMStreamedEntity* Subject = MayaStreamManager.GetSubjectOwningBlendShape(BlendShape.name());
+						if (Subject)
+						{
+							Subject->OnAnimCurveEdited(MayaUnrealLiveLinkUtils::GetPlugAliasName(Plug), Obj, Plug);
+							MayaUnrealLiveLinkUtils::AddUnique(Subject->GetDagPath(), DagPathArray);
+						}
+					}
+					else if (Node.hasFn(MFn::kDagNode))
 					{
 						MFnDagNode DagNode(Node);
 
@@ -1978,7 +2037,6 @@ void OnAnimCurveEdited(MObjectArray& Objects, void* ClientData)
 							};
 
 							IMStreamedEntity* SubjectOwningBlendshape = FindBlendShapeOwner(Plug, FindBlendShapeOwner);
-
 							auto SubjectAnimCurveEdited = [&Plug, &CurveCommonNames, &MatchName, &bInternalUpdate,
 														   &Obj, &DagPathArray](IMStreamedEntity* Subject,
 																				const MDagPath& SubjectDagPath)
@@ -2748,6 +2806,8 @@ MStatus initializePlugin(MObject MayaPluginObject)
 	MayaPlugin.registerCommand(LiveLinkGetAnimSequencesBySkeletonCommandName, LiveLinkGetAnimSequencesBySkeletonCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkLinkUnrealAssetCommandName, LiveLinkLinkUnrealAssetCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkUnlinkUnrealAssetCommandName, LiveLinkUnlinkUnrealAssetCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkBakeUnrealAssetCommandName, LiveLinkBakeUnrealAssetCommand::creator);
+	MayaPlugin.registerCommand(LiveLinkUnbakeUnrealAssetCommandName, LiveLinkUnbakeUnrealAssetCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkPluginUninitializedCommandName, LiveLinkPluginUninitializedCommand::creator);
 	MayaPlugin.registerCommand(LiveLinkPlayheadSyncCommandName,
 							   LiveLinkPlayheadSyncCommand::creator,
@@ -2835,6 +2895,8 @@ MStatus uninitializePlugin(MObject MayaPluginObject)
 	MayaPlugin.deregisterCommand(LiveLinkGetAnimSequencesBySkeletonCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkLinkUnrealAssetCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkUnlinkUnrealAssetCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkBakeUnrealAssetCommandName);
+	MayaPlugin.deregisterCommand(LiveLinkUnbakeUnrealAssetCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkPluginUninitializedCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkPlayheadSyncCommandName);
 	MayaPlugin.deregisterCommand(LiveLinkPauseAnimSyncCommandName);

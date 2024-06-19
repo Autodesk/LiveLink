@@ -672,6 +672,20 @@ void MayaLiveLinkStreamManager::LinkUnrealAsset(const MString& SubjectPathIn,
 
 //======================================================================
 //
+/*!	\brief	Enable baked animations of a subject
+
+\param[in] SubjectPathIn     DAG path for the subject.
+*/
+void MayaLiveLinkStreamManager::BakeUnrealAsset(const MString& SubjectPathIn)
+{
+	if (auto Subject = GetSubjectByDagPath(SubjectPathIn))
+	{
+		Subject->SetBakeUnrealAsset(true);
+	}
+}
+
+//======================================================================
+//
 /*!	\brief	Unlink a subject from a previously linked Unreal asset/actor
 
 \param[in] SubjectPathIn     DAG path for the subject.
@@ -681,6 +695,20 @@ void MayaLiveLinkStreamManager::UnlinkUnrealAsset(const MString& SubjectPathIn)
 	if (auto Subject = GetSubjectByDagPath(SubjectPathIn))
 	{
 		Subject->UnlinkUnrealAsset();
+	}
+}
+
+//======================================================================
+//
+/*!	\brief	Disable baked animations of a subject
+
+\param[in] SubjectPathIn     DAG path for the subject.
+*/
+void MayaLiveLinkStreamManager::UnbakeUnrealAsset(const MString& SubjectPathIn)
+{
+	if (auto Subject = GetSubjectByDagPath(SubjectPathIn))
+	{
+		Subject->SetBakeUnrealAsset(false);
 	}
 }
 
