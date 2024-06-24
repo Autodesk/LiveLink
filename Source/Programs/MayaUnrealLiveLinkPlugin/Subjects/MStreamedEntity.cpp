@@ -770,24 +770,39 @@ void MStreamedEntity::ProcessBlendShapes(const MObject& SubjectObject)
 			for (unsigned int i = 0; i < PlugArray.length(); ++i)
 			{
 				auto PlugNode = PlugArray[i].node();
-				if (!PlugNode.hasFn(MFn::kSkinClusterFilter))
+				if (PlugNode.hasFn(MFn::kSkinClusterFilter))
 				{
-					continue;
-				}
-
-				// Find the objects influenced by the skin cluster.
-				MFnSkinCluster SkinCluster(PlugNode);
-				MDagPathArray InfluenceObjectPaths;
-				const unsigned int NumInfluenceObjects = SkinCluster.influenceObjects(InfluenceObjectPaths);
-				for (unsigned int Dag = 0; Dag < NumInfluenceObjects; ++Dag)
-				{
-					// Check if the object is part of the subject hierarchy.
-					MFnDagNode ChildNode(InfluenceObjectPaths[Dag]);
-					if (!ChildNode.isChildOf(SubjectObject))
+					MFnSkinCluster SkinCluster(PlugNode);
+					MDagPathArray InfluenceObjectPaths;
+					const unsigned int NumInfluenceObjects = SkinCluster.influenceObjects(InfluenceObjectPaths);
+					for (unsigned int Dag = 0; Dag < NumInfluenceObjects; ++Dag)
 					{
-						continue;
-					}
+						// Check if the object is part of the subject hierarchy.
+						MFnDagNode ChildNode(InfluenceObjectPaths[Dag]);
+						if (!ChildNode.isChildOf(SubjectObject))
+						{
+							continue;
+						}
 
+						// Add a callback on the blendshape node to know when it changes.
+						auto BlendShapeObj = BlendShapeIterator.thisNode();
+						auto CallbackId = MNodeMessage::addAttributeChangedCallback(BlendShapeObj,
+																					AttributeChangedCallback,
+																					&RootDagPath,
+																					&Status);
+						if (Status)
+						{
+							BlendShapeNames.append(BlendShape.name());
+
+							CallbackIds.append(CallbackId);
+
+							ProcessBlendShapeControllers(BlendShape, DagPathArray);
+						}
+						break;
+					}
+				}
+				else 
+				{
 					// Add a callback on the blendshape node to know when it changes.
 					auto BlendShapeObj = BlendShapeIterator.thisNode();
 					auto CallbackId = MNodeMessage::addAttributeChangedCallback(BlendShapeObj,
@@ -802,7 +817,6 @@ void MStreamedEntity::ProcessBlendShapes(const MObject& SubjectObject)
 
 						ProcessBlendShapeControllers(BlendShape, DagPathArray);
 					}
-					break;
 				}
 			}
 		}

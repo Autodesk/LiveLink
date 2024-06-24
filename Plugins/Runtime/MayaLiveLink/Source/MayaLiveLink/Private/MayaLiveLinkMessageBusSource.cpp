@@ -526,6 +526,8 @@ void FMayaLiveLinkMessageBusSource::PushStaticDataToAnimSequence(const FName& Su
 			// Keep track of the remapping between the static data bones and the reference skeleton's bones
 			Params->BoneTrackRemapping = MoveTemp(BoneTrackRemapping);
 			Params->FullSequenceName = AnimSequenceName;
+			Params->CurveNames.Empty();
+			Params->CurveNames.Append(StaticData.PropertyNames);
 		}
 	}
 

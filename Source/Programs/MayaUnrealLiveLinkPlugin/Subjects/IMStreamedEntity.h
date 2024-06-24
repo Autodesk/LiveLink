@@ -78,5 +78,6 @@ public:
 	virtual int  GetStreamType() const = 0;
 	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) {}
 	virtual void UnlinkUnrealAsset() {}
+	virtual void SetBakeUnrealAsset(bool shouldBakeCurves) {}
 	virtual void OnTimeUnitChanged() {}
 };

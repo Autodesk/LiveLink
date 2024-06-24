@@ -100,13 +100,15 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 'Icon' : 'streamTransform',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : True
+                'LinkAllowed' : True,
+                'BakeAllowed' : True
                 },
             'Animation': {
                 'Icon' : 'streamAll',
                 'TargetAsset': 'AnimSequence',
                 'LevelAsset' : False,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : True
                 }
             },
         'Character': {
@@ -114,13 +116,15 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 'Icon' : 'streamRoot',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : True
                 },
             'Animation': {
                 'Icon' : 'streamAll',
                 'TargetAsset': 'AnimSequence',
                 'LevelAsset' : False,
-                'LinkAllowed' : True
+                'LinkAllowed' : True,
+                'BakeAllowed' : True
                 }
             },
         'Camera': {
@@ -128,19 +132,22 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 'Icon' : 'streamTransform',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : False
                 },
             'Animation': {
                 'Icon' : 'streamAll',
                 'TargetAsset': 'AnimSequence',
                 'LevelAsset' : False,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : False
                 },
             'Camera': {
                 'Icon' : 'streamCamera',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : True
+                'LinkAllowed' : True,
+                'BakeAllowed' : False
                 }
             },
         'Light': {
@@ -148,19 +155,22 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 'Icon' : 'streamTransform',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : False
                 },
             'Animation': {
                 'Icon' : 'streamAll',
                 'TargetAsset': 'AnimSequence',
                 'LevelAsset' : False,
-                'LinkAllowed' : False
+                'LinkAllowed' : False,
+                'BakeAllowed' : False
                 },
             'Light': {
                 'Icon' : 'streamLights',
                 'TargetAsset': 'LevelSequence',
                 'LevelAsset' : True,
-                'LinkAllowed' : True
+                'LinkAllowed' : True,
+                'BakeAllowed' : False
                 }
             }
         }
@@ -199,6 +209,16 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         self.linkEditIcon = ImageUtils.createIcon('edit')
         self.linkEditHoverIcon = ImageUtils.createHoverIcon(self.linkEditIcon)
 
+        # Should bake button
+        self.shouldBakeIcon = ImageUtils.createIcon('bakeCurvesConnected')
+        self.shouldBakeHoverIcon = ImageUtils.createHoverIcon(self.shouldBakeIcon)
+        self.shouldBakePausedIcon = ImageUtils.createIcon('bakeCurvesPaused')
+        self.shouldBakePausedHoverIcon = ImageUtils.createHoverIcon(self.shouldBakePausedIcon)
+        self.shouldNotBakeIcon = ImageUtils.createIcon('bakeCurvesDisconnected')
+        self.shouldNotBakeHoverIcon = ImageUtils.createHoverIcon(self.shouldNotBakeIcon)
+        self.shouldNotBakePausedIcon = ImageUtils.createIcon('bakeCurvesPaused')
+        self.shouldNotBakePausedHoverIcon = ImageUtils.createHoverIcon(self.shouldNotBakePausedIcon)
+
         self.setHorizontalHeaderLabels(['Type', 'Object Name', 'DAG Path', 'Linked asset', 'Sequence', 'Link'])
         self.horizontalHeader().setDefaultSectionSize(250)
         self.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
@@ -207,8 +227,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         self.setColumnWidth(0, windowParent.Controller.getDpiScale(40))
         self.horizontalHeaderItem(0).setTextAlignment(Qt.AlignCenter)
         self.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
-        self.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
-        self.setColumnWidth(5, windowParent.Controller.getDpiScale(52))
+        self.setColumnWidth(5, windowParent.Controller.getDpiScale(96))
         self.horizontalHeaderItem(5).setTextAlignment(Qt.AlignCenter)
         self.emptyLayout = QHBoxLayout()
         self.emptyLayout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Preferred))
@@ -227,6 +246,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         self.targetAssets = dict()
         self.subjectTypes = dict()
         self.assetsCurrentlyLinked = set()
+        self.assetsCurrentlyBaked = set()
         self.charactersForAnimSeqStreaming = set()
 
     def __del__(self):
@@ -249,8 +269,15 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         if columnIndex == self.columnCount() - 1:
             rowIndex = modelIndex.row()
             widget = self.cellWidget(rowIndex, columnIndex)
-            editButtonPressed = event.pos().x() < (widget.x() + widget.width() // 2)
-            self._onLinkButtonPressed(rowIndex, editButtonPressed)
+            bakeAllowed = self._isBakedAllowed(rowIndex)
+
+            leftSideWidget = widget.x() + widget.width() // 3
+            middleSideWidget = widget.x() + 2 * (widget.width() // 3)
+
+            editButtonPressed = event.pos().x() < leftSideWidget
+            shouldBakeButtonPressed = event.pos().x() > leftSideWidget and event.pos().x() < middleSideWidget and bakeAllowed
+            connectButtonPressed = event.pos().x() > leftSideWidget and event.pos().x() > middleSideWidget
+            self._onLinkButtonPressed(rowIndex, editButtonPressed, shouldBakeButtonPressed, connectButtonPressed)
 
     def leaveEvent(self, event):
         if event:
@@ -263,7 +290,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         for rowIndex in range(rowCount):
             linkAllowed = self._isLinkedAllowed(rowIndex)
             groupWidget = self.cellWidget(rowIndex, 5)
-            linkButton = groupWidget.layout().itemAt(1).widget()
+            linkButton = groupWidget.layout().itemAt(2).widget()
             linkButton.setEnabled(linkAllowed and (state or (self.cellWidget(rowIndex, 2).text() in self.assetsCurrentlyLinked)))
             editButton = groupWidget.layout().itemAt(0).widget()
             editButton.setEnabled(linkAllowed and state and len(self.cellWidget(rowIndex, 3).text()) > 0 and len(self.cellWidget(rowIndex, 4).text()) > 0)
@@ -279,6 +306,18 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 if subjectRole in subject:
                     linkAllowed = subject[subjectRole]['LinkAllowed']
         return linkAllowed
+    
+    def _isBakedAllowed(self, rowIndex):
+        bakeAllowed = False
+        subjectPath = self.cellWidget(rowIndex, 2).text()
+        if subjectPath in self.subjectTypes:
+            subjectType = self.subjectTypes[subjectPath]
+            if subjectType in UnrealLiveLinkSubjectTable.SubjectTypeMapping:
+                subject = UnrealLiveLinkSubjectTable.SubjectTypeMapping[subjectType]
+                subjectRole = self.cellWidget(rowIndex, 0).currentText().strip()
+                if subjectRole in subject:
+                    bakeAllowed = subject[subjectRole]['BakeAllowed']
+        return bakeAllowed
 
     def _addRow(self):
         alreadyInList = self.windowParent.Controller.addSelection()
@@ -425,6 +464,18 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 label.setEnabled(isLinked)
                 self.setCellWidget(rowCount, 3, label)
 
+                # ShouldBake asset
+                shouldBakeIcon = None
+                shouldBakeHoverIcon = None
+                isBaked = SubjectPath in self.assetsCurrentlyBaked
+                if isBaked:
+                    shouldBakeIcon = self.shouldBakePausedIcon if linkPaused else self.shouldBakeIcon
+                    shouldBakeHoverIcon = self.shouldBakePausedHoverIcon if linkPaused else self.shouldBakeHoverIcon
+                else:
+                    shouldBakeIcon = self.shouldNotBakePausedIcon if linkPaused else self.shouldNotBakeIcon
+                    shouldBakeHoverIcon = self.shouldNotBakePausedHoverIcon if linkPaused else self.shouldNotBakeHoverIcon
+
+
                 # Target asset
                 label = QLabel(self)
                 label.setStyleSheet('margin: 2px')
@@ -441,25 +492,37 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 self.setCellWidget(rowCount, 4, label)
 
                 # Edit/Link button group
-                widget = QWidget()
+                widget = QWidget(self)
                 widget.setContentsMargins(0, 0, 0, 0)
                 hlayout = QHBoxLayout()
-                hlayout.setSpacing(0)
-                hlayout.setContentsMargins(0, 0, 0, 0)
+                hlayout.setContentsMargins(8, 8, 8, 8)
+                hlayout.setSpacing(8)
+
+                linkAllowedAndConnected = linkAllowed and self.windowParent.ConnectedState
+                hasLinkInfo = (SubjectPath in self.linkedAssets) and (SubjectPath in self.targetAssets)
+
                 button = HoverButton.fromIcon(self.linkEditIcon, self.linkEditHoverIcon, '', widget)
                 button.ignoreMouseEvent = True
                 button.setIconSize(QSize(size24, size24))
-                linkAllowedAndConnected = linkAllowed and self.windowParent.ConnectedState
-                hasLinkInfo = (SubjectPath in self.linkedAssets) and (SubjectPath in self.targetAssets)
                 button.setEnabled(linkAllowedAndConnected and hasLinkInfo)
                 hlayout.addWidget(button)
+
+                if SubjectType == "Character":
+                    button = HoverButton.fromIcon(shouldBakeIcon, shouldBakeHoverIcon, '', widget)
+                    button.ignoreMouseEvent = True
+                    button.setIconSize(QSize(size24, size24))
+                    button.setEnabled(isLinked and linkAllowedAndConnected and hasLinkInfo)
+                    hlayout.addWidget(button)
+
                 button = HoverButton.fromIcon(linkIcon, linkHoverIcon, '', widget)
                 button.ignoreMouseEvent = True
                 button.setIconSize(QSize(size24, size24))
                 button.setEnabled(linkAllowedAndConnected or (hasLinkInfo and isLinked))
                 hlayout.addWidget(button)
+
                 widget.setLayout(hlayout)
                 self.setCellWidget(rowCount, 5, widget)
+                self.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
 
             # Hide the instructions when there is at least one subject in the list
             if self.rowCount() > 0:
@@ -513,7 +576,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
             self._clearUI()
             self._refreshUI()
 
-    def _onLinkButtonPressed(self, rowIndex, editButtonPressed):
+    def _onLinkButtonPressed(self, rowIndex, editButtonPressed, shouldBakeButtonPressed, connectButtonPressed):
         if rowIndex < 0 or rowIndex >= self.rowCount():
             return
 
@@ -522,7 +585,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
             return
 
         # Link button is acting as a toggle when the link information is available
-        if not editButtonPressed:
+        if not editButtonPressed and not shouldBakeButtonPressed:
             if dagPath in self.assetsCurrentlyLinked:
                 self._unLinkAsset(dagPath, rowIndex)
                 return
@@ -537,10 +600,18 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                                 linkedAssetInfo[4])
                 return
 
+        if shouldBakeButtonPressed:
+            if dagPath in self.assetsCurrentlyBaked:
+                self._unbakeAsset(dagPath, rowIndex)
+                return
+            else:
+                self._bakeAsset(dagPath, rowIndex)
+                return
+
         type = self.subjectTypes[dagPath]
         streamType = self.cellWidget(rowIndex, 0).currentText().strip()
         if type in self.SubjectTypeMapping and \
-           streamType in self.SubjectTypeMapping[type]:
+        streamType in self.SubjectTypeMapping[type]:
             mapping = self.SubjectTypeMapping[type][streamType]
 
             isRootOnly = streamType == 'Transform'
@@ -550,8 +621,9 @@ class UnrealLiveLinkSubjectTable(TableWidget):
             nodeTypeIn = self.windowParent.Controller.getNodeType(dagPath, isJoint, isJointRootOnly)
 
             # Launch the dialog outside of this function
-            QTimer.singleShot(100, lambda row=rowIndex, dag=dagPath, joint=isJoint, jointRootOnly=isJointRootOnly, nodeType=nodeTypeIn :
-                                    self.showLinkDialog(row, dag, joint, jointRootOnly, nodeType, mapping))
+            if connectButtonPressed or editButtonPressed:
+                QTimer.singleShot(100, lambda row=rowIndex, dag=dagPath, joint=isJoint, jointRootOnly=isJointRootOnly, nodeType=nodeTypeIn :
+                                        self.showLinkDialog(row, dag, joint, jointRootOnly, nodeType, mapping))
 
     def showLinkDialog(self, rowIndex, dagPath, isJoint, isJointRootOnly, nodeType, mapping):
             # Create the asset selection modal dialog
@@ -580,7 +652,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
 
     def _linkAsset(self, dagPath, rowIndex, linkedAssetPath, linkedAssetClass, targetAssetPath, targetAssetName, linkedAssetNativeClass):
         groupWidget = self.cellWidget(rowIndex, 5)
-        linkButton = groupWidget.layout().itemAt(1).widget()
+        linkButton = groupWidget.layout().itemAt(2).widget()
         linkButton.replaceIcons(self.linkPendingIcon, self.linkPendingHoverIcon)
 
         # Link the asset
@@ -601,6 +673,11 @@ class UnrealLiveLinkSubjectTable(TableWidget):
 
         editButton = groupWidget.layout().itemAt(0).widget()
         editButton.setEnabled(True)
+
+        bakeAllowed = self._isBakedAllowed(rowIndex)
+        if bakeAllowed:
+            bakeButton = groupWidget.layout().itemAt(1).widget()
+            bakeButton.setEnabled(True)
 
         linkedAssetLabel = self.cellWidget(rowIndex, 3)
         linkedAssetLabel.setEnabled(True)
@@ -628,8 +705,36 @@ class UnrealLiveLinkSubjectTable(TableWidget):
         targetAssetLineLabel.setEnabled(False)
 
         groupWidget = self.cellWidget(rowIndex, 5)
-        linkButton = groupWidget.layout().itemAt(1).widget()
+
+        bakeAllowed = self._isBakedAllowed(rowIndex)
+        if bakeAllowed:
+            bakeButton = groupWidget.layout().itemAt(1).widget()
+            bakeButton.setEnabled(False)
+
+        linkButton = groupWidget.layout().itemAt(2).widget()
         self._updateLinkButton(linkButton, False, False)
+
+    def _bakeAsset(self, dagPath, rowIndex):
+        self.assetsCurrentlyBaked.add(dagPath)
+
+        self.windowParent.Controller.bakeAsset(dagPath)
+        linkPaused = False
+        if self.windowParent.isPauseAnimSeqSyncEnabled() and dagPath in self.charactersForAnimSeqStreaming:
+            linkPaused = True
+        groupWidget = self.cellWidget(rowIndex, 5)
+        bakeButton = groupWidget.layout().itemAt(1).widget()
+        self._updateBakeButton(bakeButton, True, linkPaused)
+
+    def _unbakeAsset(self, dagPath, rowIndex):
+        if dagPath in self.assetsCurrentlyBaked:
+            self.assetsCurrentlyBaked.remove(dagPath)
+
+        self._refreshUI()
+        
+        self.windowParent.Controller.unbakeAsset(dagPath)
+        groupWidget = self.cellWidget(rowIndex, 5)
+        bakeButton = groupWidget.layout().itemAt(1).widget()
+        self._updateBakeButton(bakeButton, False, False)
 
     def _updateLinkButton(self, linkButton, assetsLinked, linkPaused):
         if linkButton and isinstance(linkButton, QPushButton):
@@ -639,6 +744,17 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 linkButton.replaceIcons(self.linkPausedIcon, self.linkPausedHoverIcon)
             else:
                 linkButton.replaceIcons(self.unlinkedIcon, self.unlinkedHoverIcon)
+
+    def _updateBakeButton(self, bakeButton, assetsBaked, linkPaused):
+        if bakeButton and isinstance(bakeButton, QPushButton):
+            if assetsBaked and not linkPaused:
+                bakeButton.replaceIcons(self.shouldBakeIcon, self. shouldBakeHoverIcon)
+            elif assetsBaked and linkPaused:
+                bakeButton.replaceIcons(self.shouldBakePausedIcon, self.shouldBakePausedHoverIcon)
+            elif not assetsBaked and not linkPaused:
+                bakeButton.replaceIcons(self.shouldNotBakeIcon, self.shouldNotBakeHoverIcon)
+            elif not assetsBaked and linkPaused:
+                bakeButton.replaceIcons(self.shouldNotBakePausedIcon, self.shouldNotBakePausedHoverIcon)
 
     def updateLinkInfo(self, dagPathOrRowIndex, linkedAssetPath, targetAssetPath, targetAssetName, linkedAssetClass, linkedAssetUnrealNativeClass):
         rowIndex = -1

@@ -1,4 +1,4 @@
-Unreal® Live Link for Autodesk ® Maya ® 2.4.0
+Unreal® Live Link for Autodesk ® Maya ® 2.4.1
 
 © 2024 Autodesk, Inc.  All rights reserved.
 
