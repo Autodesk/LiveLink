@@ -65,6 +65,7 @@ public:
 	virtual MStreamedEntity::Role GetRole() const = 0;
 
 	virtual bool IsLinked() const { return false; }
+	virtual bool IsBaked() const { return false; }
 
 	virtual void OnStream(double StreamTime, double CurrentTime) = 0;
 	void OnStreamCurrentTime();
@@ -184,6 +185,6 @@ private:
 	MStringArray BlendShapeNames;
 	bool bHasMotionPath;
 	bool bHasConstraint;
-
+	
 	friend class MayaLiveLinkStreamManager;
 };

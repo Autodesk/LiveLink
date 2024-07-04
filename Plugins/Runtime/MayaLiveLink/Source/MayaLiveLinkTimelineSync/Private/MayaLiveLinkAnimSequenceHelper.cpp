@@ -149,23 +149,23 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 	{
 		UE::Anim::Compression::FScopedCompressionGuard CompressionGuard(AnimSequence);
 
-		// Setup the AnimSequence frame count and frame rate
-		auto NumberOfFrames = StaticData.EndFrame - StaticData.StartFrame + 1;
-		StaticUpdateAnimSequence(*AnimSequence,
-								 Skeleton,
-								 ComputeAnimSequenceLength(NumberOfFrames,
-														   StaticData.FrameRate.AsDecimal()),
-								 NumberOfFrames,
-								 StaticData.FrameRate);
-
-		// Create a bone remapping array to match the skeleton structure received from Maya to the one in Unreal Editor
-		BoneTrackRemapping.Empty();
-		BoneTrackRemapping.Reserve(StaticData.BoneNames.Num());
-		auto& RefSkeleton = Skeleton->GetReferenceSkeleton();
-
 		auto& Controller = AnimSequence->GetController();
 		Controller.OpenBracket(LOCTEXT("AddNewRawTrack_Bracket", "Adding new Bone Animation Track"), false);
 		{
+			// Setup the AnimSequence frame count and frame rate
+			auto NumberOfFrames = StaticData.EndFrame - StaticData.StartFrame + 1;
+			StaticUpdateAnimSequence(*AnimSequence,
+				Skeleton,
+				ComputeAnimSequenceLength(NumberOfFrames,
+					StaticData.FrameRate.AsDecimal()),
+				NumberOfFrames,
+				StaticData.FrameRate);
+
+			// Create a bone remapping array to match the skeleton structure received from Maya to the one in Unreal Editor
+			BoneTrackRemapping.Empty();
+			BoneTrackRemapping.Reserve(StaticData.BoneNames.Num());
+			auto& RefSkeleton = Skeleton->GetReferenceSkeleton();
+
 			for (auto& BoneName : StaticData.BoneNames)
 			{
 				if (RefSkeleton.FindBoneIndex(BoneName) != INDEX_NONE)
@@ -212,7 +212,7 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 						ResizeSequenceRequested = true;
 						RawTrack.PosKeys.Init(FVector3f::ZeroVector, NumberOfFrames);
 						// NOTE: See comment above for an explanation of why this is needed
-						RandomizeVector3Array(RawTrack.PosKeys); 
+						RandomizeVector3Array(RawTrack.PosKeys);
 					}
 					if (NumberOfFrames != RawTrack.RotKeys.Num())
 					{
@@ -235,6 +235,36 @@ void UMayaLiveLinkAnimSequenceHelper::PushStaticDataToAnimSequence(const FMayaLi
 					}
 				}
 				BoneTrackRemapping.Add(BoneName);
+			}
+
+			// Go through each named curve and set its keys
+			for (auto& PropertyName : StaticData.PropertyNames)
+			{
+				const FString& CurveName = PropertyName.ToString();
+
+				FName CurveFName(*CurveName);
+
+				FAnimationCurveIdentifier CurveId(CurveFName, ERawCurveTrackTypes::RCT_Float);
+				TArray<FRichCurveKey> RichCurveKeys;
+
+				const FAnimCurveBase* RichCurve = Controller.GetModel()->FindCurve(CurveId);
+				if (!RichCurve)
+					Controller.AddCurve(CurveId, EAnimAssetCurveFlags::AACF_Editable, false);
+
+				FRichCurveKey defaultCurveKey(0.0f, 0.0f);
+				RichCurveKeys.Init(defaultCurveKey, NumberOfFrames);
+
+				const FFrameRate& FrameRate = AnimSequence->GetDataModel()->GetFrameRate();
+				const double Interval = FrameRate.AsInterval();
+
+				// Update the times to the correct values
+				for (int i = 0; i < RichCurveKeys.Num(); ++i)
+				{
+					auto& Key = RichCurveKeys[i];
+					Key.Time = static_cast<float>(i) * Interval;
+				}
+
+				Controller.SetCurveKeys(CurveId, RichCurveKeys, false);
 			}
 		}
 
@@ -333,7 +363,7 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 		Controller.CloseBracket(false);
 	}
 
-	// Update animation curves (blendshape/morph target and custom attributes)
+	// Unbaked curves
 	if (FrameData.Curves.Num() > 0)
 	{
 		UE::Anim::Compression::FScopedCompressionGuard CompressionGuard(AnimSequence);
@@ -378,6 +408,53 @@ void UMayaLiveLinkAnimSequenceHelper::PushFrameDataToAnimSequence(const FMayaLiv
 
 			Controller.SetCurveKeys(CurveId, RichCurves, false);
 		}
+	}
+
+	// Update animation curves (blendshape/morph target and custom attributes)
+	if(FrameData.Frames.Num() > 0 && FrameData.Frames[0].PropertyValues.Num() > 0)
+	{
+		UE::Anim::Compression::FScopedCompressionGuard CompressionGuard(AnimSequence);
+		const FFrameRate& FrameRate = AnimSequence->GetDataModel()->GetFrameRate();
+		const double Interval = FrameRate.AsInterval();
+
+		auto& Controller = AnimSequence->GetController();
+
+		Controller.OpenBracket(LOCTEXT("SetAnimKeys_Bracket", "Setting Animation Curve Tracks"), false);
+		{
+			for (int FrameIndex = 0; FrameIndex < FrameData.Frames.Num(); ++FrameIndex)
+			{
+				auto& Frame = FrameData.Frames[FrameIndex];
+
+				int FrameNumber = FrameData.StartFrame + FrameIndex;
+				auto PropArraySize = Frame.PropertyValues.Num();
+				for (int32 PropIndex = 0; PropIndex < PropArraySize; ++PropIndex)
+				{
+					if (PropIndex >= TimelineParams.CurveNames.Num())
+					{
+						continue;
+					}
+
+					const FName& CurveName = TimelineParams.CurveNames[PropIndex];
+					FAnimationCurveIdentifier CurveId(CurveName, ERawCurveTrackTypes::RCT_Float);
+
+					if (!CurveName.IsValid())
+					{
+						continue;
+					}
+
+					if (NumberOfFrames > 0 && FrameNumber < NumberOfFrames)
+					{
+						FRichCurveKey CurveKey;
+						CurveKey.Time = static_cast<float>(FrameNumber) * Interval;
+						CurveKey.Value = Frame.PropertyValues[PropIndex];
+						CurveKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+
+						Controller.SetCurveKey(CurveId, CurveKey, false);
+					}
+				}
+			}
+		}
+		Controller.CloseBracket(false);
 	}
 
 	FMayaLiveLinkUtils::RefreshContentBrowser(*AnimSequence);

@@ -101,6 +101,8 @@ public:
 	void LinkUnrealAsset(const MString& SubjectPathIn,
 						 const IMStreamedEntity::LinkAssetInfo& LinkInfo);
 	void UnlinkUnrealAsset(const MString& SubjectPathIn);
+	void BakeUnrealAsset(const MString& SubjectPathIn);
+	void UnbakeUnrealAsset(const MString& SubjectPathIn);
 
 	void UpdateProgressBar(int FrameNumber, int NumberOfFrames, int& LastPercentage) const;
 

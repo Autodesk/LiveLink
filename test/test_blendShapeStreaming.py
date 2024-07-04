@@ -133,10 +133,22 @@ class test_blendShapeStreaming(unittest.TestCase):
         #      - target1A = 0.76
         #      - target1B = 0.1
         cmds.blendShape('bs1ToStream', edit=True, w=[(0, 0.76), (1, 0.1)])
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs1ToStream.tgvs[0]', True)
+        cmds.setAttr('bs1ToStream.tpvs[0]', True)
+        cmds.setAttr('bs1ToStream.tgvs[1]', True)
+        cmds.setAttr('bs1ToStream.tpvs[1]', True)
+        cmds.setAttr('bs1ToStream.tgvs[2]', True)
+        cmds.setAttr('bs1ToStream.tpvs[2]', True)
         
         # In bs2ToStream
         #     - target2A = 1.0
         cmds.blendShape('bs2ToStream', edit=True, w=[(0, 1.0)])
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs2ToStream.tgvs[0]', True)
+        cmds.setAttr('bs2ToStream.tpvs[0]', True)
         
         # Export Json
         exportJson(nameRootSkeleton)
@@ -211,11 +223,23 @@ class test_blendShapeStreaming(unittest.TestCase):
         cmds.blendShape('bs1ToStream', edit=True, w=[(0, 0.76), (1, 0.0)])
         cmds.setKeyframe('bs1ToStream.w[0]')
         cmds.setKeyframe('bs1ToStream.w[1]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs1ToStream.tgvs[0]', True)
+        cmds.setAttr('bs1ToStream.tpvs[0]', True)
+        cmds.setAttr('bs1ToStream.tgvs[1]', True)
+        cmds.setAttr('bs1ToStream.tpvs[1]', True)
+        cmds.setAttr('bs1ToStream.tgvs[2]', True)
+        cmds.setAttr('bs1ToStream.tpvs[2]', True)
         
         # In bs2ToStream
         #     - target2A = 1.0
         cmds.blendShape('bs2ToStream', edit=True, w=[(0, 1.0)])
         cmds.setKeyframe('bs2ToStream.w[0]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs2ToStream.tgvs[0]', True)
+        cmds.setAttr('bs2ToStream.tpvs[0]', True)
         
         
         # SET ANIMATION BLEND SHAPE FRAME 6
@@ -228,11 +252,23 @@ class test_blendShapeStreaming(unittest.TestCase):
         cmds.blendShape('bs1ToStream', edit=True, w=[(0, 0.26), (1, 0.60)])
         cmds.setKeyframe('bs1ToStream.w[0]')
         cmds.setKeyframe('bs1ToStream.w[1]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs1ToStream.tgvs[0]', True)
+        cmds.setAttr('bs1ToStream.tpvs[0]', True)
+        cmds.setAttr('bs1ToStream.tgvs[1]', True)
+        cmds.setAttr('bs1ToStream.tpvs[1]', True)
+        cmds.setAttr('bs1ToStream.tgvs[2]', True)
+        cmds.setAttr('bs1ToStream.tpvs[2]', True)
         
         # In bs2ToStream
         #     - target2A = 1.0
         cmds.blendShape('bs2ToStream', edit=True, w=[(0, 1.0)])
         cmds.setKeyframe('bs2ToStream.w[0]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs2ToStream.tgvs[0]', True)
+        cmds.setAttr('bs2ToStream.tpvs[0]', True)
         
         
         # SET ANIMATION BLEND SHAPE FRAME 7
@@ -245,11 +281,23 @@ class test_blendShapeStreaming(unittest.TestCase):
         cmds.blendShape('bs1ToStream', edit=True, w=[(0, 0.5), (1, 1.0)])
         cmds.setKeyframe('bs1ToStream.w[0]')
         cmds.setKeyframe('bs1ToStream.w[1]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs1ToStream.tgvs[0]', True)
+        cmds.setAttr('bs1ToStream.tpvs[0]', True)
+        cmds.setAttr('bs1ToStream.tgvs[1]', True)
+        cmds.setAttr('bs1ToStream.tpvs[1]', True)
+        cmds.setAttr('bs1ToStream.tgvs[2]', True)
+        cmds.setAttr('bs1ToStream.tpvs[2]', True)
         
         # In bs2ToStream
         #     - target2A = 0.1
         cmds.blendShape('bs2ToStream', edit=True, w=[(0, 0.1)])
         cmds.setKeyframe('bs2ToStream.w[0]')
+
+        # Set the target/parent target visibility of each target.
+        cmds.setAttr('bs2ToStream.tgvs[0]', True)
+        cmds.setAttr('bs2ToStream.tpvs[0]', True)
         
         
         # List of expected values for each target at frame 5 to 7

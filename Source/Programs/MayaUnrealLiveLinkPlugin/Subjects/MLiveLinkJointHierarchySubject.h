@@ -83,8 +83,9 @@ public:
 
 	virtual void LinkUnrealAsset(const LinkAssetInfo& LinkInfo) override;
 	virtual void UnlinkUnrealAsset() override;
+	virtual void SetBakeUnrealAsset(bool shouldBakeCurves) override;
 
-	virtual bool ShouldBakeTransform() const override { return false; }
+	virtual bool ShouldBakeTransform() const override;
 
 private:
 	template<typename T>
@@ -94,6 +95,11 @@ private:
 						F& AddLambda,
 						std::vector<MMatrix>& InverseScales,
 						int FrameIndex);
+	template<typename T, typename F>
+	void BuildBlendShapeWeights(T& AnimationData, F& AddLambda, int FrameIndex);
+	template<typename T, typename F>
+	void BuildDynamicPlugValues(T& AnimationData, F& AddLambda, int FrameIndex);
+
 
 private:
 	MString SubjectName;
@@ -111,4 +117,5 @@ private:
 
 	bool StreamFullAnimSequence;
 	bool ForceLinkAsset;
+	bool ShouldBakeCurves = false;
 };
