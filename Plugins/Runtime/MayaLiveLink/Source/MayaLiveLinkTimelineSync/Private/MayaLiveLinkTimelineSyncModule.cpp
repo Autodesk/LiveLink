@@ -27,6 +27,7 @@
 #include "IPersonaPreviewScene.h"
 #include "ISequencer.h"
 #include "ISequencerModule.h"
+#include "MayaLiveLinkUtils.h"
 #include "PersonaModule.h"
 
 #include "Animation/DebugSkelMeshComponent.h"
