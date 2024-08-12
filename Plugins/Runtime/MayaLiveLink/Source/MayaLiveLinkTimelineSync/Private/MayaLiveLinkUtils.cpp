@@ -25,51 +25,7 @@
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 
-#include "UObject/CoreRedirects.h"
 #include "UObject/UObjectGlobals.h"
-
-template<typename T>
-T* FMayaLiveLinkUtils::FindAsset(const FString& Path, const FString& Name)
-{
-	if (Path.IsEmpty())
-	{
-		return nullptr;
-	}
-
-	// If we found a package, try and get the primary asset from it
-	if (UPackage* FoundPackage = FindPackage(nullptr, *Path))
-	{
-		if (auto PotentialAsset = StaticFindObject(UObject::StaticClass(),
-												   FoundPackage,
-												   Name.IsEmpty() ?
-												   (*FPackageName::GetShortName(FoundPackage)) :
-												   (*Name)))
-		{
-			return Cast<T>(PotentialAsset);
-		}
-	}
-
-	return nullptr;
-}
-
-template<typename T>
-T* FMayaLiveLinkUtils::FindAssetInRegistry(const FString& PackagePath, const FString& AssetName)
-{
-	TArray<FAssetData> OutAssetData;
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	auto& AssetRegistry = AssetRegistryModule.Get();
-
-	// Find the asset by its name and package path
-	AssetRegistry.GetAssetsByPath(FName(PackagePath), OutAssetData);
-	for (auto& Asset : OutAssetData)
-	{
-		if (Asset.AssetName.ToString() == AssetName)
-		{
-			return Cast<T>(Asset.GetAsset());
-		}
-	}
-	return nullptr;
-}
 
 void FMayaLiveLinkUtils::RefreshContentBrowser(const UObject& Object)
 {
@@ -104,43 +60,4 @@ void FMayaLiveLinkUtils::RefreshContentBrowser(const UObject& Object)
 			}
 		}
 	}
-}
-
-template<typename T>
-T* FMayaLiveLinkUtils::FindObject(const FString& InObjectName)
-{
-	const TCHAR* ObjectName = *InObjectName;
-	UObject* Object = FindFirstObject<UField>(ObjectName, EFindFirstObjectOptions::EnsureIfAmbiguous);
-	if (Object != nullptr)
-	{
-		return Cast<T>(Object);
-	}
-
-	FCoreRedirectObjectName CoreRedirectObjectName;
-	if (!FCoreRedirects::RedirectNameAndValues(ECoreRedirectFlags::Type_Class | ECoreRedirectFlags::Type_Struct | ECoreRedirectFlags::Type_Enum,
-											   FCoreRedirectObjectName(ObjectName),
-											   CoreRedirectObjectName,
-											   nullptr,
-											   ECoreRedirectMatchFlags::None))
-	{
-		return nullptr;
-	}
-
-	const FString RedirectedObjectName = CoreRedirectObjectName.ObjectName.ToString();
-	UPackage* Package = nullptr;
-	if (!CoreRedirectObjectName.PackageName.IsNone())
-	{
-		Package = FindPackage(nullptr, *CoreRedirectObjectName.PackageName.ToString());
-	}
-
-	if (Package != nullptr)
-	{
-		Object = FindObject<UField>(Package, *RedirectedObjectName);
-	}
-
-	if (Package == nullptr || Object == nullptr)
-	{
-		Object = FindFirstObject<UField>(*RedirectedObjectName, EFindFirstObjectOptions::EnsureIfAmbiguous);
-	}
-	return Cast<T>(Object);
 }

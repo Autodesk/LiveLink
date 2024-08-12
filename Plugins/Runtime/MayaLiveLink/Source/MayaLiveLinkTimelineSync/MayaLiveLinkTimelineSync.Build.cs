@@ -37,8 +37,9 @@ namespace UnrealBuildTool.Rules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"AssetRegistry",
 					"Core",
-					"LiveLinkInterface",
+					"LiveLinkInterface"
 				});
 
 			PrivateDependencyModuleNames.AddRange(
@@ -60,7 +61,7 @@ namespace UnrealBuildTool.Rules
 					"LiveLinkAnimationCore",
 					"Sequencer",
 					"CinematicCamera",
-					"Persona",
+					"Persona"
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(
