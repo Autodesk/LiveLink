@@ -48,7 +48,7 @@
 #include "Roles/MayaLiveLinkLevelSequenceRole.h"
 #include "Roles/MayaLiveLinkTimelineTypes.h"
 
-#include "MayaLiveLinkTimelineSync.h"
+#include "MayaLiveLinkTimelineSyncModule.h"
 #include "MayaLiveLinkAnimSequenceHelper.h"
 #include "MayaLiveLinkLevelSequenceHelper.h"
 #include "MayaLiveLinkUtils.h"

@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "MayaLiveLinkTimelineSync.h"
+#include "MayaLiveLinkTimelineSyncModule.h"
 
 #include "AnimPreviewInstance.h"
 #include "IAnimationEditorModule.h"
