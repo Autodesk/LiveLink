@@ -35,15 +35,10 @@
 
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
-
 #include "Channels/MovieSceneChannelProxy.h"
-
 #include "Components/LightComponent.h"
-
 #include "Engine/DirectionalLight.h"
-
 #include "GameFramework/Actor.h"
-
 #include "MovieScene.h"
 
 // Sections
@@ -59,6 +54,8 @@
 #include "Tracks/MovieSceneFloatTrack.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
 #include "Tracks/MovieSceneVisibilityTrack.h"
+
+#include "Roles/MayaLiveLinkTimelineTypes.h"
 
 #define LOCTEXT_NAMESPACE "MayaLiveLinkLevelSequenceHelper"
 
