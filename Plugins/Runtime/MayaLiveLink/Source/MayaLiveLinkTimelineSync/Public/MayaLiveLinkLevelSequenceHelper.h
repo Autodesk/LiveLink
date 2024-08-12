@@ -24,6 +24,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
+
 #include "MayaLiveLinkLevelSequenceHelper.generated.h"
 
 UCLASS(HideCategories=Object)
