@@ -142,7 +142,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkLevelSequenceStaticData : public F
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkTangentMode
+enum ELiveLinkTangentMode : int
 {
 	/** Automatically calculates tangents to create smooth curves between values. */
 	LLTM_Auto UMETA(DisplayName="Auto"),
@@ -155,7 +155,7 @@ enum ELiveLinkTangentMode
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkTangentWeightMode
+enum ELiveLinkTangentWeightMode : int
 {
 	/** Don't take tangent weights into account. */
 	LLTWM_WeightedNone UMETA(DisplayName="None"),
@@ -168,7 +168,7 @@ enum ELiveLinkTangentWeightMode
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkInterpMode
+enum ELiveLinkInterpMode : int
 {
 	/** Use linear interpolation between values. */
 	LLIM_Linear UMETA(DisplayName = "Linear"),
