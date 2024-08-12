@@ -56,9 +56,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="TimelineParams")
 	FFrameRate FrameRate;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
-	int32 StartFrame;
+	int32 StartFrame = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
-	int32 EndFrame;
+	int32 EndFrame = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
 	FString SequenceName;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
@@ -186,7 +186,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkKeyFrame
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, Category="KeyFrame")
-	double Value;
+	double Value = 0.0;
 
 	UPROPERTY(EditAnywhere, Category="KeyFrame")
 	TEnumAsByte<ELiveLinkInterpMode> InterpMode;
@@ -250,7 +250,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkAnimSequenceFrameData : public FMa
 	GENERATED_BODY()
 
 	UPROPERTY()
-	int32 StartFrame;
+	int32 StartFrame = 0;
 
 	UPROPERTY()
 	TArray<FMayaLiveLinkAnimSequenceFrame> Frames;
