@@ -232,7 +232,7 @@ bool FMayaLiveLinkTimelineSyncModule::CloseAnimEditorWindow(const FString& Path,
 			{
 				// Change the current anim to this one
 				IAnimationEditor* AnimEditor = static_cast<IAnimationEditor*>(ExistingEditor);
-				AnimEditor->CloseWindow();
+				AnimEditor->CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed);
 				return true;
 			}
 		}
