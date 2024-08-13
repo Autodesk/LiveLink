@@ -23,6 +23,7 @@
 #pragma once
 
 #include "Roles/LiveLinkBasicRole.h"
+
 #include "MayaLiveLinkAnimSequenceRole.generated.h"
 
 /**

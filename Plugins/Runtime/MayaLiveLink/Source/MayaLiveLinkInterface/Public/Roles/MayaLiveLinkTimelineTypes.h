@@ -23,6 +23,7 @@
 #pragma once
 
 #include "LiveLinkTypes.h"
+
 #include "MayaLiveLinkTimelineTypes.generated.h"
 
 class UAnimSequence;
