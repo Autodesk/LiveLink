@@ -25,8 +25,14 @@
 
 #include "Async/Async.h"
 
+#include "Animation/AnimSequence.h"
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Editor.h"
 #include "EditorClassUtils.h"
+#include "Engine/Blueprint.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "Subsystems/UnrealEditorSubsystem.h"
 #include "ILiveLinkClient.h"
 #include "MayaLiveLinkModule.h"
@@ -34,6 +40,7 @@
 #include "MayaLiveLinkMessages.h"
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkTypes.h"
+#include "UObject/Package.h"
 
 #include "Kismet/GameplayStatics.h"
 
