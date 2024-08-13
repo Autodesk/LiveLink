@@ -25,7 +25,11 @@
 #include "CoreMinimal.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Containers/UnrealString.h"
+#include "Misc/PackageName.h"
 #include "UObject/CoreRedirects.h"
+#include "UObject/Package.h"
+#include "UObject/UObjectGlobals.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMayaLiveLink, Log, All);
 
