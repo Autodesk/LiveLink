@@ -101,6 +101,7 @@ public class MayaUnrealLiveLinkPluginTarget : TargetRules
 		
 
 		bBuildInSolutionByDefault = false;
+		bUseAdaptiveUnityBuild = false;
 
 		// This .cs file must be inside the source folder of this Program. We later use this to find other key directories.
 		string TargetFilePath = GetCallerFilePath();
