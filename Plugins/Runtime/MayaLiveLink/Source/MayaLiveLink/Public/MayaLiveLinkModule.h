@@ -23,9 +23,10 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
 #include "Features/IModularFeatures.h"
 
-class FMayaLiveLinkPresenceDetector;	
+class FMayaLiveLinkPresenceDetector;
 
 class FMayaLiveLinkModule : public IModuleInterface
 {

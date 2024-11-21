@@ -23,6 +23,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Misc/QualifiedFrameTime.h"
 #include "Modules/ModuleManager.h"
 
 class FMayaLiveLinkTimelineSyncModule : public IModuleInterface

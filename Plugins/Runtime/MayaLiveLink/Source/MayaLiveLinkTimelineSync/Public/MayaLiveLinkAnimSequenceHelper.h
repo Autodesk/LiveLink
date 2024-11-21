@@ -23,7 +23,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Animation/Skeleton.h"
 #include "UObject/ObjectMacros.h"
+
 #include "MayaLiveLinkAnimSequenceHelper.generated.h"
 
 UCLASS(HideCategories=Object)

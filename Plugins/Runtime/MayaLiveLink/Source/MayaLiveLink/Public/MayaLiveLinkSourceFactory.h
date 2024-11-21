@@ -23,6 +23,7 @@
 #pragma once
 
 #include "LiveLinkMessageBusSourceFactory.h"
+
 #include "MayaLiveLinkSourceFactory.generated.h"
 
 UCLASS()

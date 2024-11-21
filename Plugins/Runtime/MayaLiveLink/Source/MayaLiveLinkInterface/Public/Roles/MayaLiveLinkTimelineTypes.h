@@ -23,6 +23,7 @@
 #pragma once
 
 #include "LiveLinkTypes.h"
+
 #include "MayaLiveLinkTimelineTypes.generated.h"
 
 class UAnimSequence;
@@ -56,9 +57,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="TimelineParams")
 	FFrameRate FrameRate;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
-	int32 StartFrame;
+	int32 StartFrame = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
-	int32 EndFrame;
+	int32 EndFrame = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
 	FString SequenceName;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="TimelineParams")
@@ -142,7 +143,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkLevelSequenceStaticData : public F
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkTangentMode
+enum ELiveLinkTangentMode : int
 {
 	/** Automatically calculates tangents to create smooth curves between values. */
 	LLTM_Auto UMETA(DisplayName="Auto"),
@@ -155,7 +156,7 @@ enum ELiveLinkTangentMode
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkTangentWeightMode
+enum ELiveLinkTangentWeightMode : int
 {
 	/** Don't take tangent weights into account. */
 	LLTWM_WeightedNone UMETA(DisplayName="None"),
@@ -168,7 +169,7 @@ enum ELiveLinkTangentWeightMode
 };
 
 UENUM(BlueprintType)
-enum ELiveLinkInterpMode
+enum ELiveLinkInterpMode : int
 {
 	/** Use linear interpolation between values. */
 	LLIM_Linear UMETA(DisplayName = "Linear"),
@@ -186,7 +187,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkKeyFrame
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, Category="KeyFrame")
-	double Value;
+	double Value = 0.0;
 
 	UPROPERTY(EditAnywhere, Category="KeyFrame")
 	TEnumAsByte<ELiveLinkInterpMode> InterpMode;
@@ -250,7 +251,7 @@ struct MAYALIVELINKINTERFACE_API FMayaLiveLinkAnimSequenceFrameData : public FMa
 	GENERATED_BODY()
 
 	UPROPERTY()
-	int32 StartFrame;
+	int32 StartFrame = 0;
 
 	UPROPERTY()
 	TArray<FMayaLiveLinkAnimSequenceFrame> Frames;

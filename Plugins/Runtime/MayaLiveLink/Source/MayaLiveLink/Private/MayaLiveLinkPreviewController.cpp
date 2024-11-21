@@ -23,8 +23,10 @@
 #include "MayaLiveLinkPreviewController.h"
 
 #include "CameraController.h"
+#include "ILiveLinkClient.h"
 #include "IPersonaPreviewScene.h"
 #include "LiveLinkClientReference.h"
+#include "MayaLiveLinkTimelineSyncModule.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Roles/LiveLinkTransformTypes.h"
 
