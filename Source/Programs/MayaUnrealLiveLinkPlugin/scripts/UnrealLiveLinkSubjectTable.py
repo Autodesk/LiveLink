@@ -271,6 +271,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
             widget = self.cellWidget(rowIndex, columnIndex)
             bakeAllowed = self._isBakedAllowed(rowIndex)
 
+            # Had to calculate the boundaries for the icons
             leftSideWidget = widget.x() + widget.width() // 3
             middleSideWidget = widget.x() + 2 * (widget.width() // 3)
 
@@ -507,6 +508,7 @@ class UnrealLiveLinkSubjectTable(TableWidget):
                 button.setEnabled(linkAllowedAndConnected and hasLinkInfo)
                 hlayout.addWidget(button)
 
+                # Add should bake button here...
                 if SubjectType == "Character":
                     button = HoverButton.fromIcon(shouldBakeIcon, shouldBakeHoverIcon, '', widget)
                     button.ignoreMouseEvent = True

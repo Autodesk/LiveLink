@@ -24,7 +24,7 @@
 
 scriptDir="$(dirname "$(readlink -f "$0")")"
 
-# arg[1] specifies the Maya version (2022|2023|2024 ...), see BuildMayaUnrealLiveLinkPlugin.xml for default value
+# arg[1] specifies the Maya version (2023|2024 ...), see BuildMayaUnrealLiveLinkPlugin.xml for default value
 if [ ! -z "$1" ]; then
     MayaVersion=-set:MayaVersion=$1
 fi

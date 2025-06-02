@@ -1379,7 +1379,7 @@ public:
 
 	MStatus			doIt(const MArgList& args) override
 	{
-		appendToResult(MString("https://help.autodesk.com/view/MAYAUL/2025/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html"));
+		appendToResult(MString("https://help.autodesk.com/view/MAYAUL/2026/ENU/?guid=UnrealLiveLink_unreal_livelink_landing_html"));
 
 		return MS::kSuccess;
 	}
