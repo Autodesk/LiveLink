@@ -227,7 +227,6 @@ bool MLiveLinkJointHierarchySubject::RebuildSubjectData(bool ForceRelink)
 					MAnimUtil::findAnimation(Plug, Curves);
 					if (Curves.length() != 0)
 					{
-						MFnDependencyNode dn(Curves[0]);
 						OnAnimKeyframeEdited(Name, Curves[0], PlugParent);
 					}
 					else
