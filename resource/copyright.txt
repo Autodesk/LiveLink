@@ -1,6 +1,6 @@
-Unreal® Live Link for Autodesk ® Maya ® 2.4.1
+Unreal® Live Link for Autodesk ® Maya ® 2.6.0
 
-© 2024 Autodesk, Inc.  All rights reserved.
+© 2025 Autodesk, Inc.  All rights reserved.
 
 All use of this Software is subject to the terms and conditions of the Autodesk license agreement accepted upon installation of this Software and/or packaged with the Software.  Autodesk software license agreements for Autodesk’s various products can be found here: http://www.autodesk.com/company/legal-notices-trademarks/software-license-agreements.
 

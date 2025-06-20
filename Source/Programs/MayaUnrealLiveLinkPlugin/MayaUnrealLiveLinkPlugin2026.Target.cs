@@ -20,40 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "MayaLiveLinkInterface.h"
+using UnrealBuildTool;
 
-#include "UObject/ObjectMacros.h"
-
-#include "Runtime/Launch/Resources/Version.h"
-
-IMPLEMENT_MODULE(FMayaLiveLinkInterfaceModule, MayaLiveLinkInterface)
-
-#define LOCTEXT_NAMESPACE "FMayaLiveLinkInterfaceModule"
-
-namespace
+public class MayaUnrealLiveLinkPlugin2026Target : MayaUnrealLiveLinkPluginTarget
 {
-	static const FString PluginVersion = "v2.6.0";
-	static const FString UnrealEngineVersion = VERSION_STRINGIFY(ENGINE_MAJOR_VERSION) TEXT(".") VERSION_STRINGIFY(ENGINE_MINOR_VERSION);
+	public MayaUnrealLiveLinkPlugin2026Target(TargetInfo Target) : base(Target, "2026")
+	{
+	}
 }
-
-void FMayaLiveLinkInterfaceModule::StartupModule()
-{
-}
-
-void FMayaLiveLinkInterfaceModule::ShutdownModule()
-{
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
-}
-
-const FString& FMayaLiveLinkInterfaceModule::GetPluginVersion()
-{
-	return PluginVersion;
-}
-
-const FString& FMayaLiveLinkInterfaceModule::GetEngineVersion()
-{
-	return UnrealEngineVersion;
-}
-
-#undef LOCTEXT_NAMESPACE
